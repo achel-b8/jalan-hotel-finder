@@ -144,7 +144,7 @@
   - セマフォ並列（1〜10）とエリア間待機
   - ページ取得インターフェース
 - 依存タスク: T02, T07, T08
-- 前提条件: `python -m playwright install chromium` 済み
+- 前提条件: `python -m playwright install --with-deps chromium` 済み
 - テスト:
   - モックで並列上限制御を確認
   - タイムアウト時の例外変換

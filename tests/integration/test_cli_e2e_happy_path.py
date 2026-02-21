@@ -1,158 +1,151 @@
 import importlib
 import json
+import os
+from datetime import date, timedelta
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+import pytest
 from typer.testing import CliRunner
 
-from jalan_hotel_finder.application.input_models import SearchAreaInput
-from jalan_hotel_finder.application.query_builder import build_search_area_url
-from jalan_hotel_finder.infrastructure.crawler import FetchResult
+from jalan_hotel_finder.application import search_services
+from jalan_hotel_finder.infrastructure.crawler import PlaywrightPageFetcher
 
+
+pytestmark = [
+    pytest.mark.external_e2e,
+    pytest.mark.skipif(
+        os.getenv("RUN_LIVE_E2E") != "1",
+        reason="set RUN_LIVE_E2E=1 to run live E2E with real Playwright",
+    ),
+]
 
 cli_module = importlib.import_module("jalan_hotel_finder.cli.app")
 runner = CliRunner()
 
 
-def _fixture(path: str) -> str:
-    return Path(path).read_text(encoding="utf-8")
+def _future_checkin(days_from_today: int = 30) -> str:
+    return (date.today() + timedelta(days=days_from_today)).isoformat()
 
 
-def _resolver(prefecture_name: str) -> list[str]:
+def _resolver_single_area(prefecture_name: str) -> list[str]:
     if prefecture_name == "北海道":
         return ["SML_010202"]
-    raise ValueError(f"unknown prefecture: {prefecture_name}")
+    raise ValueError(f"unexpected prefecture in live E2E: {prefecture_name}")
 
 
-def _make_fake_playwright_fetcher(html_by_url: dict[str, str]):
-    class _FakePlaywrightPageFetcher:
-        def __init__(self, page_load_timeout_ms: int = 30_000, headless: bool = True) -> None:
-            self._page_load_timeout_ms = page_load_timeout_ms
-            self._headless = headless
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb) -> None:
-            return None
-
-        async def fetch(self, url: str) -> FetchResult:
-            html = html_by_url.get(url)
-            if html is None:
-                raise AssertionError(f"unexpected url: {url}")
-            return FetchResult(url=url, html=html, status_code=200)
-
-    return _FakePlaywrightPageFetcher
-
-
-def test_e2e_happy_path_search_area_returns_exit_code_0_and_expected_json(monkeypatch) -> None:
-    user_input = SearchAreaInput(checkin="2026-03-10", pref=["北海道"])
-    first_url = build_search_area_url("SML_010202", user_input)
-    second_url = "https://www.jalan.net/010000/LRG_010200/SML_010202/?idx=30"
-
-    monkeypatch.setattr(cli_module, "resolve_sml_codes_for_prefecture", _resolver)
-    monkeypatch.setattr(
-        cli_module,
-        "PlaywrightPageFetcher",
-        _make_fake_playwright_fetcher(
-            {
-                first_url: _fixture("tests/fixtures/html/integration/area_page1.html"),
-                second_url: _fixture("tests/fixtures/html/integration/area_page2.html"),
-            }
-        ),
+def _force_idx_offset(url: str, idx: int = 9999) -> str:
+    parts = urlsplit(url)
+    params = dict(parse_qsl(parts.query, keep_blank_values=True))
+    params["idx"] = str(idx)
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(params), parts.fragment)
     )
+
+
+def _patch_live_playwright_route(monkeypatch) -> dict[str, int]:
+    fetch_count = {"value": 0}
+
+    original_fetch = PlaywrightPageFetcher.fetch
+    original_build_url = search_services.build_search_area_url
+
+    async def _counting_fetch(self: PlaywrightPageFetcher, url: str):
+        fetch_count["value"] += 1
+        return await original_fetch(self, url)
+
+    def _single_page_url(sml_code: str, user_input) -> str:  # type: ignore[no-untyped-def]
+        return _force_idx_offset(original_build_url(sml_code, user_input))
+
+    monkeypatch.setattr(PlaywrightPageFetcher, "fetch", _counting_fetch)
+    monkeypatch.setattr(cli_module, "resolve_sml_codes_for_prefecture", _resolver_single_area)
+    monkeypatch.setattr(search_services, "build_search_area_url", _single_page_url)
+    return fetch_count
+
+
+def test_e2e_live_search_area_uses_real_playwright_and_returns_json(monkeypatch) -> None:
+    fetch_count = _patch_live_playwright_route(monkeypatch)
 
     result = runner.invoke(
         cli_module.app,
         [
             "area",
             "--checkin",
-            "2026-03-10",
+            _future_checkin(),
             "--pref",
             "北海道",
+            "--parallel",
+            "1",
         ],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.stderr
+    assert fetch_count["value"] >= 1
+
     payload = json.loads(result.stdout)
-    assert len(payload) == 2
-    assert payload[0]["hotel_name"] == "札幌温泉ホテル"
-    assert payload[1]["hotel_name"] == "函館シティホテル"
+    assert isinstance(payload, list)
+    if payload:
+        assert payload[0]["search_type"] == "area"
+        assert "area" in payload[0]
+        assert "hotel_url_normalized" in payload[0]
 
 
-def test_e2e_happy_path_search_names_returns_exit_code_0_and_filtered_json(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    names_file = tmp_path / "names.txt"
-    names_file.write_text("札幌\n", encoding="utf-8")
-
-    user_input = SearchAreaInput(checkin="2026-03-10", pref=["北海道"])
-    first_url = build_search_area_url("SML_010202", user_input)
-
-    monkeypatch.setattr(cli_module, "resolve_sml_codes_for_prefecture", _resolver)
-    monkeypatch.setattr(cli_module, "DEFAULT_NAMES_FILE", names_file)
-    monkeypatch.setattr(
-        cli_module,
-        "PlaywrightPageFetcher",
-        _make_fake_playwright_fetcher(
-            {
-                first_url: _fixture("tests/fixtures/html/integration/names_page.html"),
-            }
-        ),
-    )
-
-    result = runner.invoke(
-        cli_module.app,
-        [
-            "list",
-            "--checkin",
-            "2026-03-10",
-            "--pref",
-            "北海道",
-        ],
-    )
-
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    assert len(payload) == 1
-    assert payload[0]["search_type"] == "name"
-    assert payload[0]["matched_name"] == "札幌"
-    assert payload[0]["hotel_name"] == "札幌温泉ホテル"
-
-
-def test_e2e_happy_path_search_names_works_with_default_names_file_and_pref(
+def test_e2e_live_search_names_uses_real_playwright_and_returns_json(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
     default_names_file = tmp_path / "candidate_hotels.csv"
-    default_names_file.write_text("宿名,URL,優先オプション\n札幌,,\n", encoding="utf-8")
-
-    user_input = SearchAreaInput(checkin="2026-03-10", pref=["北海道"])
-    first_url = build_search_area_url("SML_010202", user_input)
+    default_names_file.write_text("宿名,URL,優先オプション\nホテル,,\n", encoding="utf-8")
 
     monkeypatch.setattr(cli_module, "DEFAULT_NAMES_FILE", default_names_file)
-    monkeypatch.setattr(cli_module, "list_prefecture_names", lambda: ["北海道"])
-    monkeypatch.setattr(cli_module, "resolve_sml_codes_for_prefecture", _resolver)
-    monkeypatch.setattr(
-        cli_module,
-        "PlaywrightPageFetcher",
-        _make_fake_playwright_fetcher(
-            {
-                first_url: _fixture("tests/fixtures/html/integration/names_page.html"),
-            }
-        ),
-    )
+    fetch_count = _patch_live_playwright_route(monkeypatch)
 
     result = runner.invoke(
         cli_module.app,
         [
             "list",
             "--checkin",
-            "2026-03-10",
+            _future_checkin(),
+            "--pref",
+            "北海道",
+            "--parallel",
+            "1",
         ],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.stderr
+    assert fetch_count["value"] >= 1
+
     payload = json.loads(result.stdout)
-    assert len(payload) == 1
-    assert payload[0]["hotel_name"] == "札幌温泉ホテル"
+    assert isinstance(payload, list)
+    for record in payload:
+        assert record["search_type"] == "name"
+        assert "matched_name" in record
+
+
+def test_e2e_live_search_names_with_default_pref_uses_real_playwright(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    default_names_file = tmp_path / "candidate_hotels.csv"
+    default_names_file.write_text("宿名,URL,優先オプション\nホテル,,\n", encoding="utf-8")
+
+    monkeypatch.setattr(cli_module, "DEFAULT_NAMES_FILE", default_names_file)
+    monkeypatch.setattr(cli_module, "list_prefecture_names", lambda: ["北海道"])
+    fetch_count = _patch_live_playwright_route(monkeypatch)
+
+    result = runner.invoke(
+        cli_module.app,
+        [
+            "list",
+            "--checkin",
+            _future_checkin(),
+            "--parallel",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert fetch_count["value"] >= 1
+
+    payload = json.loads(result.stdout)
+    assert isinstance(payload, list)

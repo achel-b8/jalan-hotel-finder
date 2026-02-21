@@ -19,12 +19,59 @@ v1 CLI実装完了（2026-02-22）。
 
 ## Dependency Setup
 
+### 1. Pythonコマンド有効化（WSL/Ubuntu）
+
+`python` コマンドが存在しない環境では先に以下を実行してください。
+
 ```bash
-python3 -m venv .venv
+sudo apt update
+sudo apt install -y python-is-python3 python3-venv
+```
+
+### 2. Python依存関係
+
+```bash
+python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-dev.txt
-pip install -e .
-python -m playwright install chromium
+python -m pip install -r requirements-dev.txt
+python -m pip install -e .
+```
+
+### 3. Playwright (Chromium) + OS依存ライブラリ
+
+Linux/WSL2 では、Playwrightブラウザ本体に加えてOS側ライブラリが必要です。
+
+```bash
+python -m playwright install --with-deps chromium
+```
+
+- `--with-deps` は Debian/Ubuntu 系で必要な共有ライブラリも一緒に入れます（`sudo` 権限が必要）。
+- 典型例: `libnspr4.so` / `libnss3.so` が見つからないエラー。
+
+不足ライブラリだけ先に補う場合:
+
+```bash
+sudo apt update
+sudo apt install -y libnspr4 libnss3
+```
+
+### 4. 起動確認（任意）
+
+`pytest` が通っても実行時のブラウザ起動で失敗するケースを切り分けるため、以下で最低限の起動確認ができます。
+
+```bash
+python - <<'PY'
+import asyncio
+from playwright.async_api import async_playwright
+
+async def main():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        await browser.close()
+
+asyncio.run(main())
+print("playwright launch OK")
+PY
 ```
 
 ## Global CLI Install
@@ -33,7 +80,7 @@ python -m playwright install chromium
 
 ```bash
 cd /mnt/c/users/ytanaka/Documents/Jaran
-python3 -m pip install --user --break-system-packages -e .
+python -m pip install --user --break-system-packages -e .
 ```
 
 - 本プロジェクトはPyPI等に公開していないため、`pip install jalan-hotel-finder` のような外部取得はできません。
@@ -65,7 +112,25 @@ jalan-search list \
 
 US-02は `data/candidate_hotels.csv` を固定で使用し、`--pref` 省略時は全都道府県が使われます。
 
+## Test Execution
+
+通常テスト（ライブE2Eはスキップ）:
+
+```bash
+python -m pytest
+```
+
+コミット/プッシュ前の最終確認（ライブE2E込み）:
+
+```bash
+RUN_LIVE_E2E=1 python -m pytest
+```
+
+- `tests/integration/test_cli_e2e_happy_path.py` は実Playwrightで `https://www.jalan.net` に接続します。
+- 通常実行では `RUN_LIVE_E2E=1` を付けない限りスキップされます。
+
 ## CI
 
 - `push`（`main`）と `pull_request` で GitHub Actions の `CI Tests` が `pytest` を実行します。
+- CIでは `RUN_LIVE_E2E=1` を有効化し、ライブE2Eも含めて実行します。
 - マージ/リリース前は Actions の成功（green）を確認してください。

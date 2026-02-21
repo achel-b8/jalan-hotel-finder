@@ -58,8 +58,8 @@
 6. 初期リリースでは失敗ポリシーを `stop` 固定とし、1エリア失敗で終了コード3を返すこと。
 
 ### 5.2 US-02 受け入れ要件
-1. `--names-file` に1行1宿名で入力できること。
-2. 初期実装では `local-filter` 固定とし、取得済み宿一覧に対して宿名部分一致で絞り込めること。
+1. `--names-file` は省略時に既定ファイル（`data/candidate_hotels.csv`）を使い、明示時は `txt`（1行1候補）または `csv`（`宿名,URL,優先オプション`）を入力できること。
+2. 初期実装では `local-filter` 固定とし、取得済み宿一覧に対して宿名部分一致または宿URLパス一致で絞り込めること。
 3. 0件時でも異常終了せず、空配列JSONを出力できること。
 4. 照合後も重複排除ルール（URLパス単位）が適用されること。
 
@@ -92,14 +92,16 @@ jalan-cli search names [options]
 ### 6.3 `search names` オプション
 | オプション | 型 | 必須 | 既定値 | 説明 |
 |---|---|---|---|---|
-| `--names-file` | path | 必須 | - | 1行1宿名テキスト |
+| `--names-file` | path | 任意 | `data/candidate_hotels.csv` | `txt`（1行1候補）または `csv`（`宿名,URL,優先オプション`） |
 | `--keyword-encoding` | enum | 任意 | `cp932` | 将来の `keyword` モード向け。初期リリースでは実行に影響しない |
 | `--checkin` | `YYYY-MM-DD` | 必須 | - | v1は `local-filter` 固定かつ `dateUndecided=0` 固定のため必須 |
-| `--pref` | string（複数可） | 必須 | - | v1 `local-filter` では必須（未指定は入力不備） |
+| `--pref` | string（複数可） | 任意 | 全都道府県 | 未指定時は `area.xml` 上の全都道府県を対象に検索 |
 | `--adults` | int | 任意 | 1 | 大人人数 |
 | `--nights` | int | 任意 | 1 | 泊数 |
 | `--meal-type` | enum | 任意 | `two_meals` | 食事条件 |
 | `--parallel` | int | 任意 | 2 | 並列数（1〜10） |
+
+`csv` 形式の `優先オプション` 列は任意入力で、v1では照合条件に使わず将来拡張用メモとして扱う。`--pref` 未指定時は全都道府県対象となるため、実行時間は指定時より長くなる。
 
 ### 6.4 固定実行設定（CLIオプション非公開）
 以下は初期リリースでCLIオプションを公開せず、固定値として扱う。
@@ -145,7 +147,7 @@ jalan-cli search names [options]
 - `plan_name` (string)
 - `price` (`int`。取得不能または数値化不能時は `null`)
 - `search_type` (`area` or `name`)
-- `matched_name` (string, `search names` 時のみ)
+- `matched_name` (string, `search names` 時のみ。`宿名` または `URL` の一致した候補値)
 - `area` (string, 例: `SML_010202`)
 
 ### 7.2 初期リリース出力形態
@@ -167,7 +169,7 @@ jalan-cli search names [options]
 3. Playwrightでページ取得（並列 + 遅延制御）
 4. ページごとに宿カードを抽出し、次ページ（`idx` または `dispStartIndex`）を追跡
 5. 重複排除と整形
-6. `search names` の場合は宿名照合を適用
+6. `search names` の場合は候補照合（宿名部分一致/宿URLパス一致）を適用
 7. 固定フォーマット（JSON）で出力し、終了コードを返す
 
 ## 9. エラー処理・終了コード

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 import typer
 from pydantic import ValidationError
@@ -18,7 +19,10 @@ from jalan_hotel_finder.application.search_services import (
     search_area,
     search_names_local_filter,
 )
-from jalan_hotel_finder.infrastructure.area_xml_resolver import resolve_sml_codes_for_prefecture
+from jalan_hotel_finder.infrastructure.area_xml_resolver import (
+    list_prefecture_names,
+    resolve_sml_codes_for_prefecture,
+)
 from jalan_hotel_finder.infrastructure.crawler import (
     CrawlFetchError,
     PlaywrightCrawler,
@@ -30,6 +34,7 @@ from jalan_hotel_finder.output.json_formatter import serialize_search_results
 app = typer.Typer(help="jalan hotel finder CLI")
 search_app = typer.Typer(help="search commands")
 app.add_typer(search_app, name="search")
+DEFAULT_NAMES_FILE = Path(__file__).resolve().parents[3] / "data" / "candidate_hotels.csv"
 
 
 @search_app.command("area")
@@ -78,22 +83,25 @@ def search_area_command(
 
 @search_app.command("names")
 def search_names_command(
-    names_file: str = typer.Option(..., "--names-file"),
+    names_file: str | None = typer.Option(None, "--names-file"),
     keyword_encoding: KeywordEncoding = typer.Option(KeywordEncoding.CP932, "--keyword-encoding"),
     checkin: str = typer.Option(..., "--checkin"),
-    pref: list[str] = typer.Option(..., "--pref"),
+    pref: list[str] | None = typer.Option(None, "--pref"),
     adults: int = typer.Option(1, "--adults"),
     nights: int = typer.Option(1, "--nights"),
     meal_type: MealType = typer.Option(MealType.TWO_MEALS, "--meal-type"),
     parallel: int = typer.Option(2, "--parallel"),
 ) -> None:
     """Run names search (local-filter mode) and print JSON to stdout."""
+    effective_names_file = names_file or str(DEFAULT_NAMES_FILE)
+    effective_pref = pref or list_prefecture_names()
+
     try:
         user_input = SearchNamesInput(
-            names_file=names_file,
+            names_file=effective_names_file,
             keyword_encoding=keyword_encoding,
             checkin=checkin,
-            pref=pref,
+            pref=effective_pref,
             adults=adults,
             nights=nights,
             meal_type=meal_type,

@@ -84,6 +84,32 @@ def test_cli_search_names_success_exit_code_0(monkeypatch, tmp_path) -> None:
     assert parsed[0]["matched_name"] == "札幌"
 
 
+def test_cli_search_names_uses_defaults_for_names_file_and_pref(monkeypatch) -> None:
+    captured = {}
+
+    async def _stub_run_search_names_service(user_input):
+        captured["names_file"] = str(user_input.names_file)
+        captured["pref"] = user_input.pref
+        return []
+
+    monkeypatch.setattr(cli_module, "run_search_names_service", _stub_run_search_names_service)
+    monkeypatch.setattr(cli_module, "list_prefecture_names", lambda: ["北海道", "青森県"])
+
+    result = runner.invoke(
+        app,
+        [
+            "search",
+            "names",
+            "--checkin",
+            "2026-03-10",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["names_file"].endswith("data/candidate_hotels.csv")
+    assert captured["pref"] == ["北海道", "青森県"]
+
+
 def test_cli_returns_exit_code_2_for_input_validation_error() -> None:
     result = runner.invoke(
         app,

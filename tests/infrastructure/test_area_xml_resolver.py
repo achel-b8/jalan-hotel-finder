@@ -4,6 +4,7 @@ import pytest
 
 from jalan_hotel_finder.infrastructure.area_xml_resolver import (
     PrefectureNotFoundError,
+    list_prefecture_names,
     resolve_sml_codes_for_prefecture,
 )
 
@@ -27,3 +28,11 @@ def test_returns_non_empty_unique_sml_codes_only() -> None:
     actual = resolve_sml_codes_for_prefecture("テスト県", area_xml_path=fixture)
 
     assert actual == ["SML_990101", "SML_990102"]
+
+
+def test_list_prefecture_names_returns_non_empty_unique_names() -> None:
+    actual = list_prefecture_names()
+
+    assert "北海道" in actual
+    assert len(actual) > 40
+    assert len(actual) == len(set(actual))

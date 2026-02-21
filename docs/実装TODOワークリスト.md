@@ -243,8 +243,8 @@
 | US-01-4 `URLパス単位の重複排除` | `tests/domain/test_hotel_deduplication.py::test_deduplication_merges_records_when_query_is_different` / `tests/application/test_search_services.py::test_search_area_deduplicates_across_multiple_sml` |
 | US-01-5 `parallel=1..10` | `tests/application/test_input_models.py::test_rejects_parallel_over_limit_for_search_area` / `tests/infrastructure/test_crawler.py::test_parallel_limit_is_respected_with_semaphore` |
 | US-01-6 `1エリア失敗で停止(終了コード3)` | `tests/application/test_search_services.py::test_search_area_raises_when_one_area_fails` / `tests/cli/test_cli_commands.py::test_cli_returns_exit_code_3_for_fetch_failure` |
-| US-02-1 `names-file 1行1宿名` | `tests/domain/test_name_matching.py::test_load_hotel_names_reads_one_name_per_line` |
-| US-02-2 `local-filter 部分一致` | `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/application/test_search_services.py::test_search_names_local_filter_keeps_partial_matches_only` |
+| US-02-1 `names-file既定値 + txt/csv入力` | `tests/domain/test_name_matching.py::test_load_hotel_names_reads_one_name_per_line` / `tests/domain/test_name_matching.py::test_load_hotel_names_reads_csv_name_url_and_options_columns` / `tests/cli/test_cli_commands.py::test_cli_search_names_uses_defaults_for_names_file_and_pref` |
+| US-02-2 `local-filter 宿名部分一致/URL一致` | `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_matches_when_candidate_is_hotel_url` / `tests/application/test_search_services.py::test_search_names_local_filter_accepts_hotel_url_candidates` |
 | US-02-3 `0件でも正常/空JSON` | `tests/application/test_search_services.py::test_search_names_local_filter_returns_empty_when_no_match` / `tests/output/test_json_formatter.py::test_serialize_empty_records` |
 | US-02-4 `照合後も重複排除維持` | `tests/application/test_search_services.py::test_search_names_local_filter_keeps_deduplication_after_match` |
 | US-03-1 `coupon非公開(未対応)` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |

@@ -121,3 +121,42 @@ def test_e2e_happy_path_search_names_returns_exit_code_0_and_filtered_json(
     assert payload[0]["search_type"] == "name"
     assert payload[0]["matched_name"] == "札幌"
     assert payload[0]["hotel_name"] == "札幌温泉ホテル"
+
+
+def test_e2e_happy_path_search_names_works_with_default_names_file_and_pref(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    default_names_file = tmp_path / "candidate_hotels.csv"
+    default_names_file.write_text("宿名,URL,優先オプション\n札幌,,\n", encoding="utf-8")
+
+    user_input = SearchAreaInput(checkin="2026-03-10", pref=["北海道"])
+    first_url = build_search_area_url("SML_010202", user_input)
+
+    monkeypatch.setattr(cli_module, "DEFAULT_NAMES_FILE", default_names_file)
+    monkeypatch.setattr(cli_module, "list_prefecture_names", lambda: ["北海道"])
+    monkeypatch.setattr(cli_module, "resolve_sml_codes_for_prefecture", _resolver)
+    monkeypatch.setattr(
+        cli_module,
+        "PlaywrightPageFetcher",
+        _make_fake_playwright_fetcher(
+            {
+                first_url: _fixture("tests/fixtures/html/integration/names_page.html"),
+            }
+        ),
+    )
+
+    result = runner.invoke(
+        cli_module.app,
+        [
+            "search",
+            "names",
+            "--checkin",
+            "2026-03-10",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert len(payload) == 1
+    assert payload[0]["hotel_name"] == "札幌温泉ホテル"

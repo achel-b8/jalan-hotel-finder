@@ -12,6 +12,27 @@ class PrefectureNotFoundError(ValueError):
     """Raised when the requested prefecture does not exist in area.xml."""
 
 
+def list_prefecture_names(area_xml_path: Path | None = None) -> list[str]:
+    """Return unique, non-empty prefecture names from area.xml."""
+    xml_path = area_xml_path or DEFAULT_AREA_XML_PATH
+    root = etree.parse(str(xml_path)).getroot()
+
+    names: list[str] = []
+    seen: set[str] = set()
+
+    for prefecture in root.findall("./Prefecture"):
+        name = (prefecture.get("name") or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+
+    if not names:
+        raise ValueError("no prefecture names found in area.xml")
+
+    return names
+
+
 def resolve_sml_codes_for_prefecture(
     prefecture_name: str,
     area_xml_path: Path | None = None,

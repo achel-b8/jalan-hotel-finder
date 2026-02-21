@@ -3,7 +3,10 @@ import importlib
 
 from typer.testing import CliRunner
 
-from jalan_hotel_finder.application.search_services import AreaSearchFailedError
+from jalan_hotel_finder.application.search_services import (
+    AreaSearchFailedError,
+    NameSearchFailedError,
+)
 cli_module = importlib.import_module("jalan_hotel_finder.cli.app")
 
 
@@ -164,3 +167,23 @@ def test_cli_coupon_command_returns_exit_code_2() -> None:
 
     assert result.exit_code == 2
     assert "not supported" in result.stderr
+
+
+def test_cli_search_names_returns_exit_code_3_for_keyword_fetch_failure(monkeypatch) -> None:
+    async def _stub_run_search_names_service(user_input):
+        raise NameSearchFailedError("ピリカ", "https://example.com", "timeout")
+
+    monkeypatch.setattr(cli_module, "run_search_names_service", _stub_run_search_names_service)
+
+    result = runner.invoke(
+        app,
+        [
+            "list",
+            "--checkin",
+            "2026-03-10",
+            "--pref",
+            "北海道",
+        ],
+    )
+
+    assert result.exit_code == 3

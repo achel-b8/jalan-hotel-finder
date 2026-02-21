@@ -110,7 +110,7 @@ jalan-search list \
   --checkin 2026-03-10
 ```
 
-US-02は `data/candidate_hotels.csv` を固定で使用し、`--pref` 省略時は全都道府県が使われます。
+US-02は `data/candidate_hotels.csv` を固定で使用し、候補宿名ごとにキーワード検索URLを1回だけ取得して照合します（ページ送りなし）。
 
 ## Test Execution
 

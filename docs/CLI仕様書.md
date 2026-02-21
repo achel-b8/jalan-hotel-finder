@@ -16,7 +16,7 @@
 ### 2.1 対象
 - じゃらん検索結果ページからの宿情報抽出（宿名、宿URL、プラン名、価格）
 - 都道府県指定時のSMLエリア分解検索
-- 宿名リスト入力による検索（初期はエリア検索 + ローカル照合を標準）
+- 宿名リスト入力による検索（キーワードURLの one-shot 取得 + ローカル照合）
 - CUI単発実行（バッチ想定）
 
 ### 2.2 対象外
@@ -59,9 +59,10 @@
 
 ### 5.2 US-02 受け入れ要件
 1. `list` コマンドは既定ファイル（`data/candidate_hotels.csv`）を固定で使い、候補ファイルパスのCLI指定を受け付けないこと。
-2. 初期実装では `local-filter` 固定とし、取得済み宿一覧に対して宿名部分一致または宿URLパス一致で絞り込めること。
-3. 0件時でも異常終了せず、空配列JSONを出力できること。
-4. 照合後も重複排除ルール（URLパス単位）が適用されること。
+2. `list` は候補宿名ごとに `uww2011init.do?keyword=...` を1回だけ取得し、ページネーションを辿らないこと。
+3. 取得結果に対して宿名部分一致または宿URLパス一致で絞り込めること。
+4. 0件時でも異常終了せず、空配列JSONを出力できること。
+5. 照合後も重複排除ルール（URLパス単位）が適用されること。
 
 ### 5.3 US-03 受け入れ要件（将来要件）
 1. 初期リリースでは `coupon` サブコマンドを公開しないこと。
@@ -92,14 +93,14 @@ jalan-search list [options]
 ### 6.3 `list` オプション
 | オプション | 型 | 必須 | 既定値 | 説明 |
 |---|---|---|---|---|
-| `--checkin` | `YYYY-MM-DD` | 必須 | - | v1は `local-filter` 固定かつ `dateUndecided=0` 固定のため必須 |
-| `--pref` | string（複数可） | 任意 | 全都道府県 | 未指定時は `area.xml` 上の全都道府県を対象に検索 |
+| `--checkin` | `YYYY-MM-DD` | 必須 | - | `area` と共通の入力体系維持のため必須（keyword検索URLには反映しない） |
+| `--pref` | string（複数可） | 任意 | 全都道府県 | 互換入力として受理（keyword検索URLには反映しない） |
 | `--adults` | int | 任意 | 1 | 大人人数 |
 | `--nights` | int | 任意 | 1 | 泊数 |
 | `--meal-type` | enum | 任意 | `two_meals` | 食事条件 |
 | `--parallel` | int | 任意 | 2 | 並列数（1〜10） |
 
-`list` は候補ファイルを `data/candidate_hotels.csv` 固定で読み込む。`csv` 形式の `優先オプション` 列は任意入力で、v1では照合条件に使わず将来拡張用メモとして扱う。`--pref` 未指定時は全都道府県対象となるため、実行時間は指定時より長くなる。
+`list` は候補ファイルを `data/candidate_hotels.csv` 固定で読み込む。`csv` 形式の `優先オプション` 列は任意入力で、v1では照合条件に使わず将来拡張用メモとして扱う。候補宿名ごとに `keyword` を生成して one-shot 取得するため、エリア総当たりは行わない。
 
 ### 6.4 固定実行設定（CLIオプション非公開）
 以下は初期リリースでCLIオプションを公開せず、固定値として扱う。
@@ -111,7 +112,7 @@ jalan-search list [options]
 | ログ/進捗/エラー出力先 | `stderr` | `stdout` には混在させない |
 | 出力フォーマット | `json` | CSV/NDJSONは将来拡張 |
 | ヘッドレス実行 | `true` | 非ヘッドレス起動オプションは未公開 |
-| 待機時間 | 1000ms | エリア間待機の暫定安全値（観測に応じて将来調整） |
+| 待機時間 | 100ms | エリア間待機の暫定安全値（観測に応じて将来調整） |
 | ページロード待機 | 30000ms | 内部タイムアウト設定 |
 | 要素待機 | 10000ms | 内部タイムアウト設定 |
 | リトライ最大試行回数 | 3 | Tenacityで制御 |
@@ -119,7 +120,7 @@ jalan-search list [options]
 | `roomCount` | 1 | `--rooms` は未公開 |
 | `dateUndecided` | 0 | 日付未定検索は未公開（`--checkin` 未指定は入力不備） |
 | `careBath` | 0 | 内湯・大浴場条件は未公開 |
-| `search-mode` | `local-filter` | `keyword` は将来拡張 |
+| `search-mode` | `keyword-one-shot` | 1候補名=1リクエスト、ページ送りなし |
 | `match` | `partial` | 完全一致モードは未公開 |
 | 候補ファイルパス | `data/candidate_hotels.csv` | `list` コマンドで固定 |
 | `continue-on-error` 相当 | 非公開/固定 `false` | v1は `stop` 固定。継続実行は将来拡張 |
@@ -137,6 +138,9 @@ jalan-search list [options]
 | `roomCount`（固定） | `roomCount=1` |
 | `dateUndecided`（固定） | `dateUndecided=0` |
 | `careBath`（固定） | `careBath=0` |
+| `list` 固定URL | `/uw/uwp2011/uww2011init.do` |
+| `list` 固定パラメータ | `distCd=06`, `rootCd=7701`, `screenId=FWPCTOP`, `ccnt=button-fw`, `image1=` |
+| `list` 候補宿名 | `keyword`（CP932エンコード） |
 
 ## 7. 出力仕様
 ### 7.1 JSON項目
@@ -147,7 +151,7 @@ jalan-search list [options]
 - `price` (`int`。取得不能または数値化不能時は `null`)
 - `search_type` (`area` or `name`)
 - `matched_name` (string, `list` 時のみ。`宿名` または `URL` の一致した候補値)
-- `area` (string, 例: `SML_010202`)
+- `area` (string, `area` 時のみ。例: `SML_010202`)
 
 ### 7.2 初期リリース出力形態
 - 出力先: 標準出力（`stdout`）
@@ -164,11 +168,11 @@ jalan-search list [options]
 
 ## 8. 実行フロー
 1. CLI引数検証（型、範囲、必須関係）
-2. 検索対象URL集合の生成（`pref` 指定時は `area.xml` からSML展開）
+2. `area` は `pref` 指定時に `area.xml` からSML展開、`list` は候補宿名から keyword URL を生成
 3. Playwrightでページ取得（並列 + 遅延制御）
-4. ページごとに宿カードを抽出し、次ページ（`idx` または `dispStartIndex`）を追跡
+4. `area` は次ページ（`idx`）を追跡、`list` は1候補名につき1ページのみ取得
 5. 重複排除と整形
-6. `list` の場合は候補照合（宿名部分一致/宿URLパス一致）を適用
+6. `list` は候補照合（宿名部分一致/宿URLパス一致）を適用
 7. 固定フォーマット（JSON）で出力し、終了コードを返す
 
 ## 9. エラー処理・終了コード

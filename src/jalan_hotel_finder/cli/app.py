@@ -15,8 +15,9 @@ from jalan_hotel_finder.application.input_models import (
 )
 from jalan_hotel_finder.application.search_services import (
     AreaSearchFailedError,
+    NameSearchFailedError,
     search_area,
-    search_names_local_filter,
+    search_names_keyword_one_shot,
 )
 from jalan_hotel_finder.infrastructure.area_xml_resolver import (
     list_prefecture_names,
@@ -87,7 +88,7 @@ def search_list_command(
     meal_type: MealType = typer.Option(MealType.TWO_MEALS, "--meal-type"),
     parallel: int = typer.Option(2, "--parallel"),
 ) -> None:
-    """Run candidate-list search (local-filter mode) and print JSON to stdout."""
+    """Run candidate-list search (keyword one-shot mode) and print JSON to stdout."""
     effective_pref = pref or list_prefecture_names()
 
     try:
@@ -106,7 +107,7 @@ def search_list_command(
 
     try:
         records = asyncio.run(run_search_names_service(user_input))
-    except (AreaSearchFailedError, CrawlFetchError) as error:
+    except (AreaSearchFailedError, NameSearchFailedError, CrawlFetchError) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=3) from error
     except Exception as error:  # unexpected
@@ -129,7 +130,7 @@ async def run_search_area_service(user_input: SearchAreaInput) -> list[dict]:
         crawler = PlaywrightCrawler(
             fetcher=fetcher,
             parallel=user_input.parallel,
-            area_delay_ms=1_000,
+            area_delay_ms=100,
         )
         return await search_area(
             user_input=user_input,
@@ -144,11 +145,10 @@ async def run_search_names_service(user_input: SearchNamesInput) -> list[dict]:
         crawler = PlaywrightCrawler(
             fetcher=fetcher,
             parallel=user_input.parallel,
-            area_delay_ms=1_000,
+            area_delay_ms=100,
         )
-        return await search_names_local_filter(
+        return await search_names_keyword_one_shot(
             user_input=user_input,
-            resolve_sml_codes_for_prefecture=resolve_sml_codes_for_prefecture,
             crawler=crawler,
         )
 

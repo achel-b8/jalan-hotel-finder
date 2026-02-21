@@ -1,10 +1,18 @@
 from pathlib import Path
+import json
 
 import pytest
 
 from jalan_hotel_finder.application.input_models import SearchAreaInput, SearchNamesInput
-from jalan_hotel_finder.application.search_services import FetchedPage, search_area, search_names_local_filter
-from jalan_hotel_finder.application.query_builder import build_search_area_url
+from jalan_hotel_finder.application.search_services import (
+    FetchedPage,
+    search_area,
+    search_names_keyword_one_shot,
+)
+from jalan_hotel_finder.application.query_builder import (
+    build_keyword_search_url,
+    build_search_area_url,
+)
 from jalan_hotel_finder.output.json_formatter import serialize_search_results
 
 
@@ -74,15 +82,7 @@ async def test_integration_us02_names_search_json_snapshot(tmp_path: Path) -> No
         checkin="2026-03-10",
         pref=["北海道"],
     )
-    area_input = SearchAreaInput(
-        checkin=user_input.checkin,
-        pref=user_input.pref,
-        adults=user_input.adults,
-        nights=user_input.nights,
-        meal_type=user_input.meal_type,
-        parallel=user_input.parallel,
-    )
-    start_url = build_search_area_url("SML_010202", area_input)
+    start_url = build_keyword_search_url("札幌", user_input.keyword_encoding)
 
     crawler = _FakeCrawler(
         {
@@ -90,17 +90,21 @@ async def test_integration_us02_names_search_json_snapshot(tmp_path: Path) -> No
         }
     )
 
-    records = await search_names_local_filter(
+    records = await search_names_keyword_one_shot(
         user_input=user_input,
-        resolve_sml_codes_for_prefecture=_resolver,
         crawler=crawler,
+        names_loader=lambda _: ["札幌"],
     )
 
     actual_json = serialize_search_results(records)
-    expected_json = (
-        '[{"hotel_name": "札幌温泉ホテル", "hotel_url": "https://www.jalan.net/yad100000/", '
-        '"plan_name": "夕朝食付き", "price": 10000, "search_type": "name", "area": "SML_010202", '
-        '"hotel_url_normalized": "/yad100000", "matched_name": "札幌"}]'
-    )
-
-    assert actual_json == expected_json
+    assert json.loads(actual_json) == [
+        {
+            "hotel_name": "札幌温泉ホテル",
+            "hotel_url": "https://www.jalan.net/yad100000/",
+            "plan_name": "夕朝食付き",
+            "price": 10000,
+            "search_type": "name",
+            "hotel_url_normalized": "/yad100000",
+            "matched_name": "札幌",
+        }
+    ]

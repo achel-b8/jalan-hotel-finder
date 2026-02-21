@@ -17,7 +17,7 @@ class MealType(StrEnum):
 
 
 class KeywordEncoding(StrEnum):
-    """Keyword encoding option for future keyword mode."""
+    """Keyword encoding option for `list` keyword mode."""
 
     AUTO = "auto"
     UTF8 = "utf8"

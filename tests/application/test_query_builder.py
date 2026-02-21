@@ -11,8 +11,15 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from jalan_hotel_finder.application.input_models import MealType, SearchAreaInput
-from jalan_hotel_finder.application.query_builder import build_search_area_url
+from jalan_hotel_finder.application.input_models import (
+    KeywordEncoding,
+    MealType,
+    SearchAreaInput,
+)
+from jalan_hotel_finder.application.query_builder import (
+    build_keyword_search_url,
+    build_search_area_url,
+)
 
 
 def _parse_params(url: str) -> dict[str, list[str]]:
@@ -97,3 +104,23 @@ def test_build_search_area_url_omits_optional_care_params_when_disabled() -> Non
     assert "careKake" not in params
     assert "careBathRent" not in params
     assert "carePribateBath" not in params
+
+
+def test_build_keyword_search_url_uses_cp932_percent_encoding() -> None:
+    url = build_keyword_search_url("ピリカレラ", KeywordEncoding.CP932)
+
+    parsed = urlparse(url)
+    assert parsed.path == "/uw/uwp2011/uww2011init.do"
+    assert "keyword=%83s%83%8A%83J%83%8C%83%89" in parsed.query
+    params = _parse_params(url)
+    assert params["distCd"] == ["06"]
+    assert params["rootCd"] == ["7701"]
+    assert params["screenId"] == ["FWPCTOP"]
+    assert params["ccnt"] == ["button-fw"]
+
+
+def test_build_keyword_search_url_treats_auto_as_cp932() -> None:
+    cp932_url = build_keyword_search_url("川島旅館", KeywordEncoding.CP932)
+    auto_url = build_keyword_search_url("川島旅館", KeywordEncoding.AUTO)
+
+    assert cp932_url == auto_url

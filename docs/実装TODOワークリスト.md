@@ -165,14 +165,15 @@
 - 完了条件: `CLI仕様書 5.1` をユースケース単体で満たす。
 
 ### [x] T11: `search names` アプリケーションサービス
-- 目的: `area` 結果に宿名照合を適用する。
+- 目的: 候補宿名ごとの keyword one-shot 取得結果に宿名照合を適用する。
 - 成果物:
-  - `search_names_local_filter()` ユースケース
+  - `search_names_keyword_one_shot()` ユースケース
   - `matched_name` 付与
 - 依存タスク: T05, T10
-- 前提条件: 初期は `local-filter` 固定
+- 前提条件: `list` は `keyword-one-shot` 固定
 - テスト:
-  - 部分一致結果のみ残る
+  - 1候補名=1リクエスト（ページ送りなし）
+  - URL候補は keyword リクエスト対象外
   - 0件時も正常終了
   - 照合後も重複排除維持
 - 完了条件: `CLI仕様書 5.2` を満たす。
@@ -218,10 +219,23 @@
   - JSON出力のスナップショット
 - 完了条件: `CLI仕様書 5` の全項目に対応テストが存在する。
 
+### [ ] T15: `search area` の本格並列化（エリア単位）
+- 目的: `area` の実行時間短縮のため、SMLエリア単位の並列処理を導入する。
+- 成果物:
+  - エリア単位でのタスク並列実行
+  - `stop` ポリシー維持（1エリア失敗で終了コード3）
+- 依存タスク: T10, T13
+- 前提条件: レート制御（待機・同時実行上限）の再調整方針を定義すること
+- テスト:
+  - `並列数制約` を満たしつつエリア単位で並列化される
+  - 1エリア失敗時に他タスクを停止し終了コード3相当の例外となる
+  - 既存の `重複排除` / `終了コード` の回帰がない
+- 完了条件: `CLI仕様書 5.1(5)(6)` を維持したまま体感実行時間が改善する。
+
 ---
 
 ## 依存関係サマリ（簡易）
-- 先行推奨: `T00 → T01 → (T02, T04, T05, T06, T08) → T03 → T07 → T09 → T10 → T11 → T12 → T13 → T14`
+- 先行推奨: `T00 → T01 → (T02, T04, T05, T06, T08) → T03 → T07 → T09 → T10 → T11 → T12 → T13 → T14 → T15`
 - 最小縦スライス（最初の実装候補）: `T00 → T01 → T02 → T03 → T04 → T06 → T07 → T08 → T09 → T10`
 
 ## 着手順の提案（最初の3タスク）
@@ -244,8 +258,8 @@
 | US-01-5 `parallel=1..10` | `tests/application/test_input_models.py::test_rejects_parallel_over_limit_for_search_area` / `tests/infrastructure/test_crawler.py::test_parallel_limit_is_respected_with_semaphore` |
 | US-01-6 `1エリア失敗で停止(終了コード3)` | `tests/application/test_search_services.py::test_search_area_raises_when_one_area_fails` / `tests/cli/test_cli_commands.py::test_cli_returns_exit_code_3_for_fetch_failure` |
 | US-02-1 `names-file既定値 + txt/csv入力` | `tests/domain/test_name_matching.py::test_load_hotel_names_reads_one_name_per_line` / `tests/domain/test_name_matching.py::test_load_hotel_names_reads_csv_name_url_and_options_columns` / `tests/cli/test_cli_commands.py::test_cli_search_names_uses_defaults_for_names_file_and_pref` |
-| US-02-2 `local-filter 宿名部分一致/URL一致` | `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_matches_when_candidate_is_hotel_url` / `tests/application/test_search_services.py::test_search_names_local_filter_accepts_hotel_url_candidates` |
-| US-02-3 `0件でも正常/空JSON` | `tests/application/test_search_services.py::test_search_names_local_filter_returns_empty_when_no_match` / `tests/output/test_json_formatter.py::test_serialize_empty_records` |
-| US-02-4 `照合後も重複排除維持` | `tests/application/test_search_services.py::test_search_names_local_filter_keeps_deduplication_after_match` |
+| US-02-2 `keyword one-shot + 宿名部分一致/URL一致` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_matches_when_candidate_is_hotel_url` |
+| US-02-3 `0件でも正常/空JSON` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_returns_empty_when_only_url_candidates` / `tests/output/test_json_formatter.py::test_serialize_empty_records` |
+| US-02-4 `照合後も重複排除維持` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` |
 | US-03-1 `coupon非公開(未対応)` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |
 | US-03-2 `未対応要求はstderr+終了コード2` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |

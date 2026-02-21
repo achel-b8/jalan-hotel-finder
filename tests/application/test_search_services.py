@@ -4,10 +4,12 @@ from typing import Any
 import pytest
 
 from jalan_hotel_finder.application.input_models import SearchAreaInput, SearchNamesInput
+from jalan_hotel_finder.application.query_builder import build_keyword_search_url
 from jalan_hotel_finder.application.search_services import (
     AreaSearchFailedError,
     FetchedPage,
     search_area,
+    search_names_keyword_one_shot,
     search_names_local_filter,
 )
 
@@ -26,6 +28,19 @@ class _FakeCrawler:
 
     async def sleep_between_areas(self) -> None:
         self.sleep_calls += 1
+
+
+class _TrackingCrawler:
+    def __init__(self, html_by_url: dict[str, str]) -> None:
+        self._html_by_url = html_by_url
+        self.called_urls: list[str] = []
+
+    async def fetch_url(self, url: str) -> FetchedPage:
+        self.called_urls.append(url)
+        return FetchedPage(url=url, html=self._html_by_url[url], status_code=200)
+
+    async def sleep_between_areas(self) -> None:
+        return None
 
 
 def _resolver(prefecture_name: str) -> list[str]:
@@ -306,3 +321,88 @@ async def test_search_names_local_filter_accepts_hotel_url_candidates(tmp_path: 
     assert actual[1]["hotel_name"] == "ピリカ"
     assert actual[1]["search_type"] == "name"
     assert actual[1]["matched_name"].startswith("https://www.jalan.net/yad377160/")
+
+
+@pytest.mark.asyncio
+async def test_search_names_keyword_one_shot_fetches_each_keyword_once(tmp_path: Path) -> None:
+    names_file = tmp_path / "candidate_hotels.csv"
+    names_file.write_text(
+        "宿名,URL,優先オプション\n"
+        "候補その1,https://www.jalan.net/yad386526/?yadNo=386526,\n"
+        "候補その2,https://www.jalan.net/yad377160/?yadNo=377160,\n",
+        encoding="utf-8",
+    )
+    user_input = SearchNamesInput(
+        names_file=names_file,
+        checkin="2026-03-10",
+        pref=["北海道"],
+    )
+    keyword_url_1 = build_keyword_search_url("川島旅館", user_input.keyword_encoding)
+    keyword_url_2 = build_keyword_search_url("ピリカ", user_input.keyword_encoding)
+    crawler = _TrackingCrawler(
+        {
+            keyword_url_1: "kw1",
+            keyword_url_2: "kw2",
+        }
+    )
+
+    def _extractor(html: str) -> list[dict[str, Any]]:
+        if html == "kw1":
+            return [
+                {
+                    "hotel_name": "宿A",
+                    "hotel_url": "https://www.jalan.net/yad386526/?plan=1",
+                    "plan_name": "プランA",
+                    "price": 10000,
+                }
+            ]
+        if html == "kw2":
+            return [
+                {
+                    "hotel_name": "宿B",
+                    "hotel_url": "https://www.jalan.net/yad377160/?plan=1",
+                    "plan_name": "プランB",
+                    "price": 11000,
+                }
+            ]
+        return []
+
+    actual = await search_names_keyword_one_shot(
+        user_input=user_input,
+        crawler=crawler,
+        names_loader=lambda _: [
+            "川島旅館",
+            "https://www.jalan.net/yad386526/?yadNo=386526",
+            "ピリカ",
+            "https://www.jalan.net/yad377160/?yadNo=377160",
+        ],
+        hotel_card_extractor=_extractor,
+    )
+
+    assert sorted(crawler.called_urls) == sorted([keyword_url_1, keyword_url_2])
+    assert len(actual) == 2
+    assert actual[0]["search_type"] == "name"
+    assert actual[1]["search_type"] == "name"
+
+
+@pytest.mark.asyncio
+async def test_search_names_keyword_one_shot_returns_empty_when_only_url_candidates(
+    tmp_path: Path,
+) -> None:
+    names_file = tmp_path / "candidate_hotels.csv"
+    names_file.write_text("宿名,URL,優先オプション\n", encoding="utf-8")
+    user_input = SearchNamesInput(
+        names_file=names_file,
+        checkin="2026-03-10",
+        pref=["北海道"],
+    )
+    crawler = _TrackingCrawler({})
+
+    actual = await search_names_keyword_one_shot(
+        user_input=user_input,
+        crawler=crawler,
+        names_loader=lambda _: ["https://www.jalan.net/yad386526/?yadNo=386526"],
+    )
+
+    assert actual == []
+    assert crawler.called_urls == []

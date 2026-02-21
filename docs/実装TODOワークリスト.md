@@ -49,7 +49,7 @@
 ### [x] T02: CLI入力モデルとバリデーション
 - 目的: 入力不備を早期に弾き、終了コード2に接続しやすくする。
 - 成果物:
-  - `search area` / `search names` の入力モデル
+  - `area` / `list` の入力モデル
   - `parallel=1..10`、日付形式、enum制約、必須関係の検証
 - 依存タスク: T00
 - 前提条件: なし
@@ -86,9 +86,9 @@
 - 完了条件: `CLI仕様書 5.1(1)` を満たす。
 
 ### [x] T05: 宿名リスト読込とローカル照合
-- 目的: `search names` の核となるローカルフィルタを先に実装する。
+- 目的: `list` の核となるローカルフィルタを先に実装する。
 - 成果物:
-  - `--names-file` 読込関数（1行1宿名）
+  - 候補ファイル読込関数（1行1宿名）
   - 宿名部分一致フィルタ（`matched_name` 付与）
 - 依存タスク: T00, T01
 - 前提条件: 文字コードは初期実装ではUTF-8想定（必要なら後続で拡張）
@@ -165,7 +165,7 @@
 - 完了条件: `CLI仕様書 5.1` をユースケース単体で満たす。
 
 ### [x] T11: `search names` アプリケーションサービス
-- 目的: `search area` 結果に宿名照合を適用する。
+- 目的: `area` 結果に宿名照合を適用する。
 - 成果物:
   - `search_names_local_filter()` ユースケース
   - `matched_name` 付与
@@ -186,15 +186,15 @@
 - 前提条件: なし
 - テスト:
   - `search area` 形式
-  - `search names` 形式
+  - `list` 形式
   - 空配列出力
 - 完了条件: `CLI仕様書 7.1/7.2` を満たす。
 
-### [x] T13: Typer CLI実装（`search area` / `search names`）
+### [x] T13: Typer CLI実装（`area` / `list`）
 - 目的: ユースケースをCLIコマンドとして公開する。
 - 成果物:
-  - `jalan-cli search area`
-  - `jalan-cli search names`
+  - `jalan-search area`
+  - `jalan-search list`
   - 未対応機能（coupon相当）時のエラーメッセージ
 - 依存タスク: T02, T10, T11, T12
 - 前提条件: なし

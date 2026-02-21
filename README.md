@@ -4,7 +4,7 @@
 
 ## Status
 
-仕様策定完了（2026-02-21）。
+v1 CLI実装完了（2026-02-22）。
 
 ## Spec Documents
 
@@ -23,21 +23,35 @@
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
+pip install -e .
 python -m playwright install chromium
 ```
+
+## Global CLI Install
+
+`jalan-search` をグローバルに使う場合は、リポジトリ直下で以下を実行します。
+
+```bash
+cd /mnt/c/users/ytanaka/Documents/Jaran
+python3 -m pip install --user --break-system-packages -e .
+```
+
+- 本プロジェクトはPyPI等に公開していないため、`pip install jalan-hotel-finder` のような外部取得はできません。
+- `-e .` は現在のローカルリポジトリを参照するインストールです（別ディレクトリで実行しても同じ効果になりません）。
+- `~/.local/bin` が `PATH` に入っていれば、どこからでも `jalan-search` を実行できます。
 
 ## CLI Usage
 
 ヘルプ:
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m typer jalan_hotel_finder.cli.app run --help
+jalan-search --help
 ```
 
 都道府県で検索（US-01）:
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m typer jalan_hotel_finder.cli.app run search area \
+jalan-search area \
   --checkin 2026-03-10 \
   --pref 北海道
 ```
@@ -45,11 +59,11 @@ PYTHONPATH=src .venv/bin/python -m typer jalan_hotel_finder.cli.app run search a
 候補CSVで絞り込み（US-02）:
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m typer jalan_hotel_finder.cli.app run search names \
+jalan-search list \
   --checkin 2026-03-10
 ```
 
-`--names-file` は省略時に `data/candidate_hotels.csv`、`--pref` は省略時に全都道府県が使われます。
+US-02は `data/candidate_hotels.csv` を固定で使用し、`--pref` 省略時は全都道府県が使われます。
 
 ## CI
 

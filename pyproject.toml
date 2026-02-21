@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jalan-hotel-finder"
+version = "0.1.0"
+description = "CLI tool for searching Jalan hotels."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "playwright>=1.50",
+  "typer>=0.12",
+  "pydantic>=2.6",
+  "selectolax>=0.3",
+  "lxml>=5.0",
+  "tenacity>=9.0",
+]
+
+[project.scripts]
+jalan-search = "jalan_hotel_finder.cli.app:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

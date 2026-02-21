@@ -64,7 +64,6 @@ def test_e2e_happy_path_search_area_returns_exit_code_0_and_expected_json(monkey
     result = runner.invoke(
         cli_module.app,
         [
-            "search",
             "area",
             "--checkin",
             "2026-03-10",
@@ -91,6 +90,7 @@ def test_e2e_happy_path_search_names_returns_exit_code_0_and_filtered_json(
     first_url = build_search_area_url("SML_010202", user_input)
 
     monkeypatch.setattr(cli_module, "resolve_sml_codes_for_prefecture", _resolver)
+    monkeypatch.setattr(cli_module, "DEFAULT_NAMES_FILE", names_file)
     monkeypatch.setattr(
         cli_module,
         "PlaywrightPageFetcher",
@@ -104,10 +104,7 @@ def test_e2e_happy_path_search_names_returns_exit_code_0_and_filtered_json(
     result = runner.invoke(
         cli_module.app,
         [
-            "search",
-            "names",
-            "--names-file",
-            str(names_file),
+            "list",
             "--checkin",
             "2026-03-10",
             "--pref",
@@ -149,8 +146,7 @@ def test_e2e_happy_path_search_names_works_with_default_names_file_and_pref(
     result = runner.invoke(
         cli_module.app,
         [
-            "search",
-            "names",
+            "list",
             "--checkin",
             "2026-03-10",
         ],

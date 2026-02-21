@@ -9,7 +9,6 @@ import typer
 from pydantic import ValidationError
 
 from jalan_hotel_finder.application.input_models import (
-    KeywordEncoding,
     MealType,
     SearchAreaInput,
     SearchNamesInput,
@@ -32,12 +31,10 @@ from jalan_hotel_finder.output.json_formatter import serialize_search_results
 
 
 app = typer.Typer(help="jalan hotel finder CLI")
-search_app = typer.Typer(help="search commands")
-app.add_typer(search_app, name="search")
 DEFAULT_NAMES_FILE = Path(__file__).resolve().parents[3] / "data" / "candidate_hotels.csv"
 
 
-@search_app.command("area")
+@app.command("area")
 def search_area_command(
     checkin: str = typer.Option(..., "--checkin"),
     pref: list[str] | None = typer.Option(None, "--pref"),
@@ -81,10 +78,8 @@ def search_area_command(
     typer.echo(serialize_search_results(records))
 
 
-@search_app.command("names")
-def search_names_command(
-    names_file: str | None = typer.Option(None, "--names-file"),
-    keyword_encoding: KeywordEncoding = typer.Option(KeywordEncoding.CP932, "--keyword-encoding"),
+@app.command("list")
+def search_list_command(
     checkin: str = typer.Option(..., "--checkin"),
     pref: list[str] | None = typer.Option(None, "--pref"),
     adults: int = typer.Option(1, "--adults"),
@@ -92,14 +87,12 @@ def search_names_command(
     meal_type: MealType = typer.Option(MealType.TWO_MEALS, "--meal-type"),
     parallel: int = typer.Option(2, "--parallel"),
 ) -> None:
-    """Run names search (local-filter mode) and print JSON to stdout."""
-    effective_names_file = names_file or str(DEFAULT_NAMES_FILE)
+    """Run candidate-list search (local-filter mode) and print JSON to stdout."""
     effective_pref = pref or list_prefecture_names()
 
     try:
         user_input = SearchNamesInput(
-            names_file=effective_names_file,
-            keyword_encoding=keyword_encoding,
+            names_file=DEFAULT_NAMES_FILE,
             checkin=checkin,
             pref=effective_pref,
             adults=adults,
@@ -123,7 +116,7 @@ def search_names_command(
     typer.echo(serialize_search_results(records))
 
 
-@search_app.command("coupon", hidden=True)
+@app.command("coupon", hidden=True)
 def search_coupon_command() -> None:
     """Unsupported command reserved for future release."""
     typer.echo("coupon search is not supported in v1", err=True)
@@ -146,7 +139,7 @@ async def run_search_area_service(user_input: SearchAreaInput) -> list[dict]:
 
 
 async def run_search_names_service(user_input: SearchNamesInput) -> list[dict]:
-    """Wire production dependencies for `search names`."""
+    """Wire production dependencies for `list` command."""
     async with PlaywrightPageFetcher(page_load_timeout_ms=30_000, headless=True) as fetcher:
         crawler = PlaywrightCrawler(
             fetcher=fetcher,
@@ -163,3 +156,7 @@ async def run_search_names_service(user_input: SearchNamesInput) -> list[dict]:
 def main() -> None:
     """Console script entrypoint."""
     app()
+
+
+if __name__ == "__main__":
+    main()

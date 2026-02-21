@@ -25,7 +25,7 @@ class KeywordEncoding(StrEnum):
 
 
 class SearchAreaInput(BaseModel):
-    """Validated input for `search area`."""
+    """Validated input for `area`."""
 
     checkin: date
     pref: list[str] = Field(default_factory=list)
@@ -39,7 +39,7 @@ class SearchAreaInput(BaseModel):
 
 
 class SearchNamesInput(BaseModel):
-    """Validated input for `search names`."""
+    """Validated input for `list`."""
 
     names_file: Path
     keyword_encoding: KeywordEncoding = KeywordEncoding.CP932

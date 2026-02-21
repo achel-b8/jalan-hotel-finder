@@ -30,7 +30,6 @@ def test_cli_search_area_success_exit_code_0(monkeypatch) -> None:
     result = runner.invoke(
         app,
         [
-            "search",
             "area",
             "--checkin",
             "2026-03-10",
@@ -63,14 +62,12 @@ def test_cli_search_names_success_exit_code_0(monkeypatch, tmp_path) -> None:
         ]
 
     monkeypatch.setattr(cli_module, "run_search_names_service", _stub_run_search_names_service)
+    monkeypatch.setattr(cli_module, "DEFAULT_NAMES_FILE", names_file)
 
     result = runner.invoke(
         app,
         [
-            "search",
-            "names",
-            "--names-file",
-            str(names_file),
+            "list",
             "--checkin",
             "2026-03-10",
             "--pref",
@@ -98,8 +95,7 @@ def test_cli_search_names_uses_defaults_for_names_file_and_pref(monkeypatch) -> 
     result = runner.invoke(
         app,
         [
-            "search",
-            "names",
+            "list",
             "--checkin",
             "2026-03-10",
         ],
@@ -110,11 +106,26 @@ def test_cli_search_names_uses_defaults_for_names_file_and_pref(monkeypatch) -> 
     assert captured["pref"] == ["北海道", "青森県"]
 
 
+def test_cli_list_rejects_names_file_option() -> None:
+    result = runner.invoke(
+        app,
+        [
+            "list",
+            "--checkin",
+            "2026-03-10",
+            "--names-file",
+            "data/candidate_hotels.csv",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "No such option" in result.stderr
+
+
 def test_cli_returns_exit_code_2_for_input_validation_error() -> None:
     result = runner.invoke(
         app,
         [
-            "search",
             "area",
             "--checkin",
             "2026-03-10",
@@ -137,7 +148,6 @@ def test_cli_returns_exit_code_3_for_fetch_failure(monkeypatch) -> None:
     result = runner.invoke(
         app,
         [
-            "search",
             "area",
             "--checkin",
             "2026-03-10",
@@ -150,7 +160,7 @@ def test_cli_returns_exit_code_3_for_fetch_failure(monkeypatch) -> None:
 
 
 def test_cli_coupon_command_returns_exit_code_2() -> None:
-    result = runner.invoke(app, ["search", "coupon"])
+    result = runner.invoke(app, ["coupon"])
 
     assert result.exit_code == 2
     assert "not supported" in result.stderr

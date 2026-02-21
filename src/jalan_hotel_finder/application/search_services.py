@@ -1,4 +1,4 @@
-"""Application services for `search area` and `search names` use cases."""
+"""Application services for `area` and `list` use cases."""
 
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ async def search_names_local_filter(
         Awaitable[list[dict[str, Any]]],
     ] = search_area,
 ) -> list[dict[str, Any]]:
-    """Run `search area` then apply local partial-match name filtering."""
+    """Run `area` flow then apply local partial-match filtering for `list`."""
     target_names = names_loader(user_input.names_file)
 
     area_input = SearchAreaInput(

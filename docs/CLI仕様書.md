@@ -58,7 +58,7 @@
 6. 初期リリースでは失敗ポリシーを `stop` 固定とし、1エリア失敗で終了コード3を返すこと。
 
 ### 5.2 US-02 受け入れ要件
-1. `--names-file` は省略時に既定ファイル（`data/candidate_hotels.csv`）を使い、明示時は `txt`（1行1候補）または `csv`（`宿名,URL,優先オプション`）を入力できること。
+1. `list` コマンドは既定ファイル（`data/candidate_hotels.csv`）を固定で使い、候補ファイルパスのCLI指定を受け付けないこと。
 2. 初期実装では `local-filter` 固定とし、取得済み宿一覧に対して宿名部分一致または宿URLパス一致で絞り込めること。
 3. 0件時でも異常終了せず、空配列JSONを出力できること。
 4. 照合後も重複排除ルール（URLパス単位）が適用されること。
@@ -69,14 +69,14 @@
 
 ## 6. CLI仕様
 ### 6.1 コマンド構成
-実行バイナリ名は `jalan-cli` とする（Python実装時は同名エントリポイントを提供）。
+実行バイナリ名は `jalan-search` とする（Python実装時は同名エントリポイントを提供）。
 
 ```bash
-jalan-cli search area [options]
-jalan-cli search names [options]
+jalan-search area [options]
+jalan-search list [options]
 ```
 
-### 6.2 `search area` オプション
+### 6.2 `area` オプション
 | オプション | 型 | 必須 | 既定値 | 説明 |
 |---|---|---|---|---|
 | `--checkin` | `YYYY-MM-DD` | 必須 | - | 宿泊日 |
@@ -89,11 +89,9 @@ jalan-cli search names [options]
 | `--care-private-openair` | flag | 任意 | false | じゃらんの `carePribateBath=1`（露天風呂付き客室）に対応。`Pribate` はじゃらん側表記を踏襲 |
 | `--parallel` | int | 任意 | 2 | 並列数（1〜10） |
 
-### 6.3 `search names` オプション
+### 6.3 `list` オプション
 | オプション | 型 | 必須 | 既定値 | 説明 |
 |---|---|---|---|---|
-| `--names-file` | path | 任意 | `data/candidate_hotels.csv` | `txt`（1行1候補）または `csv`（`宿名,URL,優先オプション`） |
-| `--keyword-encoding` | enum | 任意 | `cp932` | 将来の `keyword` モード向け。初期リリースでは実行に影響しない |
 | `--checkin` | `YYYY-MM-DD` | 必須 | - | v1は `local-filter` 固定かつ `dateUndecided=0` 固定のため必須 |
 | `--pref` | string（複数可） | 任意 | 全都道府県 | 未指定時は `area.xml` 上の全都道府県を対象に検索 |
 | `--adults` | int | 任意 | 1 | 大人人数 |
@@ -101,7 +99,7 @@ jalan-cli search names [options]
 | `--meal-type` | enum | 任意 | `two_meals` | 食事条件 |
 | `--parallel` | int | 任意 | 2 | 並列数（1〜10） |
 
-`csv` 形式の `優先オプション` 列は任意入力で、v1では照合条件に使わず将来拡張用メモとして扱う。`--pref` 未指定時は全都道府県対象となるため、実行時間は指定時より長くなる。
+`list` は候補ファイルを `data/candidate_hotels.csv` 固定で読み込む。`csv` 形式の `優先オプション` 列は任意入力で、v1では照合条件に使わず将来拡張用メモとして扱う。`--pref` 未指定時は全都道府県対象となるため、実行時間は指定時より長くなる。
 
 ### 6.4 固定実行設定（CLIオプション非公開）
 以下は初期リリースでCLIオプションを公開せず、固定値として扱う。
@@ -123,6 +121,7 @@ jalan-cli search names [options]
 | `careBath` | 0 | 内湯・大浴場条件は未公開 |
 | `search-mode` | `local-filter` | `keyword` は将来拡張 |
 | `match` | `partial` | 完全一致モードは未公開 |
+| 候補ファイルパス | `data/candidate_hotels.csv` | `list` コマンドで固定 |
 | `continue-on-error` 相当 | 非公開/固定 `false` | v1は `stop` 固定。継続実行は将来拡張 |
 
 ### 6.5 クエリパラメータ対応
@@ -147,7 +146,7 @@ jalan-cli search names [options]
 - `plan_name` (string)
 - `price` (`int`。取得不能または数値化不能時は `null`)
 - `search_type` (`area` or `name`)
-- `matched_name` (string, `search names` 時のみ。`宿名` または `URL` の一致した候補値)
+- `matched_name` (string, `list` 時のみ。`宿名` または `URL` の一致した候補値)
 - `area` (string, 例: `SML_010202`)
 
 ### 7.2 初期リリース出力形態
@@ -169,7 +168,7 @@ jalan-cli search names [options]
 3. Playwrightでページ取得（並列 + 遅延制御）
 4. ページごとに宿カードを抽出し、次ページ（`idx` または `dispStartIndex`）を追跡
 5. 重複排除と整形
-6. `search names` の場合は候補照合（宿名部分一致/宿URLパス一致）を適用
+6. `list` の場合は候補照合（宿名部分一致/宿URLパス一致）を適用
 7. 固定フォーマット（JSON）で出力し、終了コードを返す
 
 ## 9. エラー処理・終了コード

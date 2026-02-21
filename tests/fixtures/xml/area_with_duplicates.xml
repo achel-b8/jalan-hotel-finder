@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Area>
+  <Prefecture cd="990000" name="テスト県">
+    <LargeArea cd="990100" name="エリアA">
+      <SmallArea cd="990101" name="小エリア1" />
+      <SmallArea cd="990102" name="小エリア2" />
+      <SmallArea cd="990101" name="小エリア1重複" />
+      <SmallArea cd="" name="空コード" />
+    </LargeArea>
+  </Prefecture>
+</Area>

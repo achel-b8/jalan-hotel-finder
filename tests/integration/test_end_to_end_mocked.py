@@ -84,7 +84,14 @@ async def test_integration_us02_names_search_list_snapshot(tmp_path: Path) -> No
         checkin="2026-03-10",
         pref=["北海道"],
     )
-    start_url = build_keyword_search_url("札幌", user_input.keyword_encoding)
+    start_url = build_keyword_search_url(
+        "札幌",
+        user_input.keyword_encoding,
+        checkin=user_input.checkin,
+        adults=user_input.adults,
+        nights=user_input.nights,
+        meal_type=user_input.meal_type,
+    )
 
     crawler = _FakeCrawler(
         {

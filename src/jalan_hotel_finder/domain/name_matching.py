@@ -1,12 +1,25 @@
 """Domain utilities for loading hotel names and local name matching."""
 
 import csv
+from enum import StrEnum
 import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
 from jalan_hotel_finder.domain.hotel_deduplication import normalize_hotel_url
+
+
+class PreferredOption(StrEnum):
+    """Supported preferred-option tokens in candidate CSV."""
+
+    CARE_KAKENAGASHI = "care-kakenagashi"
+    CARE_BATH_RENT = "care-bath-rent"
+    CARE_PRIVATE_OPENAIR = "care-private-openair"
+
+
+class InvalidPreferredOptionError(ValueError):
+    """Raised when candidate CSV includes an unsupported preferred option."""
 
 
 def load_hotel_names(names_file: Path) -> list[str]:
@@ -40,6 +53,31 @@ def _load_hotel_names_from_csv(names_file: Path) -> list[str]:
             _append_unique_candidate(loaded_names, seen, hotel_url)
 
     return loaded_names
+
+
+def load_preferred_options_by_name(names_file: Path) -> dict[str, set[PreferredOption]]:
+    """Load preferred options from CSV and group by hotel name."""
+    if names_file.suffix.lower() != ".csv":
+        return {}
+
+    options_by_name: dict[str, set[PreferredOption]] = {}
+    with names_file.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row_index, row in enumerate(reader, start=2):
+            hotel_name = _first_non_empty(row, ["宿名", "hotel_name", "name"])
+            if hotel_name is None:
+                continue
+
+            preferred_options = _parse_preferred_options(
+                row,
+                names_file=names_file,
+                row_index=row_index,
+            )
+            if not preferred_options:
+                continue
+
+            options_by_name.setdefault(hotel_name, set()).update(preferred_options)
+    return options_by_name
 
 
 def filter_hotels_by_names(
@@ -92,6 +130,30 @@ def _first_non_empty(row: Mapping[str, str | None], keys: list[str]) -> str | No
         if value is not None and value.strip():
             return value.strip()
     return None
+
+
+def _parse_preferred_options(
+    row: Mapping[str, str | None],
+    names_file: Path,
+    row_index: int,
+) -> set[PreferredOption]:
+    raw_options = _first_non_empty(row, ["優先オプション", "preferred_options", "options"])
+    if raw_options is None:
+        return set()
+
+    parsed: set[PreferredOption] = set()
+    for raw_option in raw_options.split("|"):
+        option = raw_option.strip()
+        if not option:
+            continue
+        try:
+            parsed.add(PreferredOption(option))
+        except ValueError as error:
+            raise InvalidPreferredOptionError(
+                f"unsupported preferred option in {names_file}:{row_index}: {option}"
+            ) from error
+
+    return parsed
 
 
 def _normalize_target_hotel_url(target: str) -> str | None:

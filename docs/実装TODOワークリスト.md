@@ -278,6 +278,24 @@
   - `tests/cli/test_cli_commands.py::test_cli_search_names_accepts_max_price_option`
 - 完了条件: `--maxPrice` 指定時のみ `maxPrice` が付与され、未指定時は既存挙動を維持する。
 
+### [x] T19: `list` の候補CSV `優先オプション` を keyword検索条件へ反映
+- 目的: `list` 実行時に候補CSV `優先オプション` を検索条件へ反映し、`area` と同系統の `care*` 条件指定を可能にする。
+- 成果物:
+  - `優先オプション`（`care-kakenagashi|care-bath-rent|care-private-openair`）の解析・検証
+  - 候補宿名ごとの keyword URL に `careKake/careBathRent/carePribateBath` を付与
+  - `list` keyword URL に `checkin/adults/nights/meal/maxPrice` を反映
+  - 未対応 `優先オプション` 検出時は終了コード `2`
+- 依存タスク: T02, T03, T11, T13
+- 前提条件: 候補CSVは `data/candidate_hotels.csv` 固定、`list` は one-shot 方針を維持すること
+- テスト:
+  - `tests/domain/test_name_matching.py::test_load_preferred_options_by_name_reads_supported_tokens`
+  - `tests/domain/test_name_matching.py::test_load_preferred_options_by_name_rejects_unsupported_token`
+  - `tests/application/test_query_builder.py::test_build_keyword_search_url_includes_stay_and_preferred_options_when_specified`
+  - `tests/application/test_search_services.py::test_search_names_keyword_one_shot_applies_csv_preferred_options_to_keyword_url`
+  - `tests/application/test_search_services.py::test_search_names_keyword_one_shot_raises_for_unsupported_csv_preferred_option`
+  - `tests/cli/test_cli_commands.py::test_cli_returns_exit_code_2_for_invalid_preferred_option`
+- 完了条件: `list` で候補CSVの `優先オプション` が keyword URL に反映され、不正トークンは `終了コード2` で停止する。
+
 ---
 
 ## 依存関係サマリ（簡易）
@@ -285,6 +303,7 @@
 - 障害是正パス: `T04 + T06 + T11 + T14 → T16`
 - 入力互換拡張パス: `T02 + T13 → T17`
 - 予算上限拡張パス: `T02 + T03 + T11 + T13 → T18`
+- 候補オプション反映パス: `T02 + T03 + T11 + T13 → T19`
 - 最小縦スライス（最初の実装候補）: `T00 → T01 → T02 → T03 → T04 → T06 → T07 → T08 → T09 → T10`
 
 ## 着手順の提案（最初の3タスク）
@@ -307,7 +326,7 @@
 | US-01-5 `parallel=1..10` | `tests/application/test_input_models.py::test_rejects_parallel_over_limit_for_search_area` / `tests/infrastructure/test_crawler.py::test_parallel_limit_is_respected_with_semaphore` |
 | US-01-6 `1エリア失敗で停止(終了コード3)` | `tests/application/test_search_services.py::test_search_area_raises_when_one_area_fails` / `tests/cli/test_cli_commands.py::test_cli_returns_exit_code_3_for_fetch_failure` |
 | US-02-1 `names-file既定値 + txt/csv入力` | `tests/domain/test_name_matching.py::test_load_hotel_names_reads_one_name_per_line` / `tests/domain/test_name_matching.py::test_load_hotel_names_reads_csv_name_url_and_options_columns` / `tests/cli/test_cli_commands.py::test_cli_search_names_uses_defaults_for_names_file_and_pref` / `tests/cli/test_cli_commands.py::test_cli_search_names_accepts_comma_separated_prefectures` |
-| US-02-2 `keyword one-shot + 宿名部分一致/URL一致` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` / `tests/application/test_search_services.py::test_search_names_keyword_one_shot_uses_loaded_csv_candidates_for_url_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_matches_when_candidate_is_hotel_url` |
+| US-02-2 `keyword one-shot + 宿名部分一致/URL一致 + 候補オプション反映` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` / `tests/application/test_search_services.py::test_search_names_keyword_one_shot_uses_loaded_csv_candidates_for_url_match` / `tests/application/test_search_services.py::test_search_names_keyword_one_shot_applies_csv_preferred_options_to_keyword_url` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_matches_when_candidate_is_hotel_url` / `tests/domain/test_name_matching.py::test_load_preferred_options_by_name_reads_supported_tokens` |
 | US-02-3 `0件でも正常/該当なしメッセージ` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_returns_empty_when_only_url_candidates` / `tests/output/test_json_formatter.py::test_shows_message_when_no_records` |
 | US-02-4 `照合後も同一宿判定 + 1宿最大3件維持` | `tests/application/test_search_services.py::test_search_names_local_filter_keeps_up_to_three_plans_after_match` / `tests/output/test_json_formatter.py::test_limits_plans_to_three_per_hotel_in_recommendation_order` |
 | US-03-1 `coupon非公開(未対応)` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |

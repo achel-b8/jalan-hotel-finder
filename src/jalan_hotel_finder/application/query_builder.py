@@ -1,5 +1,6 @@
 """Build Jalan search URLs from validated CLI inputs."""
 
+from datetime import date
 import re
 from urllib.parse import quote_from_bytes, urlencode, urlunsplit
 
@@ -56,6 +57,14 @@ def build_keyword_search_url(
     keyword: str,
     encoding: KeywordEncoding,
     max_price: int | None = None,
+    *,
+    checkin: date | None = None,
+    adults: int = 1,
+    nights: int = 1,
+    meal_type: MealType | None = None,
+    care_kakenagashi: bool = False,
+    care_bath_rent: bool = False,
+    care_private_openair: bool = False,
 ) -> str:
     """Build one-shot keyword search URL."""
     normalized_keyword = keyword.strip()
@@ -63,16 +72,34 @@ def build_keyword_search_url(
         raise ValueError("keyword must not be empty")
 
     encoded_keyword = _encode_keyword_for_query(normalized_keyword, encoding)
-    query = (
-        f"keyword={encoded_keyword}"
-        "&distCd=06"
-        "&rootCd=7701"
-        "&screenId=FWPCTOP"
-        "&ccnt=button-fw"
-        "&image1="
-    )
+    query_parts = [
+        f"keyword={encoded_keyword}",
+        "distCd=06",
+        "rootCd=7701",
+        "screenId=FWPCTOP",
+        "ccnt=button-fw",
+        "image1=",
+        f"adultNum={adults}",
+        f"stayCount={nights}",
+        "roomCount=1",
+        "dateUndecided=0",
+        "careBath=0",
+    ]
+    if checkin is not None:
+        query_parts.append(f"stayYear={checkin.year:04d}")
+        query_parts.append(f"stayMonth={checkin.month:02d}")
+        query_parts.append(f"stayDay={checkin.day:02d}")
+    if meal_type is not None:
+        query_parts.append(f"mealType={_MEAL_TYPE_TO_PARAM[meal_type]}")
+    if care_kakenagashi:
+        query_parts.append("careKake=1")
+    if care_bath_rent:
+        query_parts.append("careBathRent=1")
+    if care_private_openair:
+        query_parts.append("carePribateBath=1")
     if max_price is not None:
-        query += f"&maxPrice={max_price}"
+        query_parts.append(f"maxPrice={max_price}")
+    query = "&".join(query_parts)
     return urlunsplit(
         ("https", "www.jalan.net", "/uw/uwp2011/uww2011init.do", query, "")
     )

@@ -22,7 +22,12 @@ from jalan_hotel_finder.application.query_builder import (
 from jalan_hotel_finder.domain.hotel_deduplication import (
     deduplicate_hotels_by_normalized_url,
 )
-from jalan_hotel_finder.domain.name_matching import filter_hotels_by_names, load_hotel_names
+from jalan_hotel_finder.domain.name_matching import (
+    PreferredOption,
+    filter_hotels_by_names,
+    load_hotel_names,
+    load_preferred_options_by_name,
+)
 from jalan_hotel_finder.infrastructure.hotel_card_extractor import extract_hotel_cards_from_html
 
 _HOTEL_URL_TARGET_PATTERN = re.compile(r"/yad\d+", re.IGNORECASE)
@@ -156,10 +161,15 @@ async def search_names_keyword_one_shot(
     user_input: SearchNamesInput,
     crawler: CrawlerPort,
     names_loader: Callable[[Path], list[str]] = load_hotel_names,
+    keyword_options_loader: Callable[
+        [Path],
+        dict[str, set[PreferredOption]],
+    ] = load_preferred_options_by_name,
     hotel_card_extractor: Callable[[str], list[dict[str, Any]]] = extract_hotel_cards_from_html,
 ) -> list[dict[str, Any]]:
     """Run one-shot keyword search for each candidate name (no pagination)."""
     target_names = names_loader(user_input.names_file)
+    keyword_options_by_name = keyword_options_loader(user_input.names_file)
     keyword_targets = _extract_keyword_targets(target_names)
     if not keyword_targets:
         return []
@@ -169,6 +179,7 @@ async def search_names_keyword_one_shot(
             _fetch_one_keyword(
                 keyword=keyword,
                 user_input=user_input,
+                preferred_options=keyword_options_by_name.get(keyword, set()),
                 crawler=crawler,
                 hotel_card_extractor=hotel_card_extractor,
             )
@@ -222,6 +233,7 @@ def _extract_keyword_targets(target_names: list[str]) -> list[str]:
 async def _fetch_one_keyword(
     keyword: str,
     user_input: SearchNamesInput,
+    preferred_options: set[PreferredOption],
     crawler: CrawlerPort,
     hotel_card_extractor: Callable[[str], list[dict[str, Any]]],
 ) -> list[dict[str, Any]]:
@@ -229,6 +241,13 @@ async def _fetch_one_keyword(
         keyword,
         user_input.keyword_encoding,
         user_input.max_price,
+        checkin=user_input.checkin,
+        adults=user_input.adults,
+        nights=user_input.nights,
+        meal_type=user_input.meal_type,
+        care_kakenagashi=PreferredOption.CARE_KAKENAGASHI in preferred_options,
+        care_bath_rent=PreferredOption.CARE_BATH_RENT in preferred_options,
+        care_private_openair=PreferredOption.CARE_PRIVATE_OPENAIR in preferred_options,
     )
     try:
         fetched_page = await crawler.fetch_url(url)

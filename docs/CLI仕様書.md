@@ -66,6 +66,7 @@
 3. 取得結果に対して宿名部分一致または宿URLパス一致で絞り込めること。
 4. 0件時でも異常終了せず、`該当する宿はありませんでした。` を出力できること。
 5. 照合後もURLパス単位の同一宿判定を適用し、1宿あたり最大3プランを取得順（おすすめ順）で保持できること。
+6. `csv` の `優先オプション`（`care-kakenagashi|care-bath-rent|care-private-openair`）を候補宿名ごとの keyword URL 条件へ反映できること。未対応オプションを検出した場合は入力不備として終了コード `2` を返すこと。
 
 ### 5.3 US-03 受け入れ要件（将来要件）
 1. 初期リリースでは `coupon` サブコマンドを公開しないこと。
@@ -97,15 +98,15 @@ jalan-search list [options]
 ### 6.3 `list` オプション
 | オプション | 型 | 必須 | 既定値 | 説明 |
 |---|---|---|---|---|
-| `--checkin` | `YYYY-MM-DD` | 必須 | - | `area` と共通の入力体系維持のため必須（keyword検索URLには反映しない） |
+| `--checkin` | `YYYY-MM-DD` | 必須 | - | keyword検索URLに `stayYear/stayMonth/stayDay` として反映 |
 | `--pref` | string（複数可、`,` 区切り可） | 任意 | 全都道府県 | 互換入力として受理（keyword検索URLには反映しない） |
-| `--adults` | int | 任意 | 1 | 大人人数 |
-| `--nights` | int | 任意 | 1 | 泊数 |
+| `--adults` | int | 任意 | 1 | keyword検索URLに `adultNum` として反映 |
+| `--nights` | int | 任意 | 1 | keyword検索URLに `stayCount` として反映 |
 | `--maxPrice` | int | 任意 | 無制限 | 1人1泊あたり予算上限（円）。指定時のみ `maxPrice` を付与 |
-| `--meal-type` | enum | 任意 | 指定なし（`mealType` 未付与） | 食事条件 |
+| `--meal-type` | enum | 任意 | 指定なし（`mealType` 未付与） | keyword検索URLに `mealType` として反映 |
 | `--parallel` | int | 任意 | 2 | 並列数（1〜10） |
 
-`list` は候補ファイルを `data/candidate_hotels.csv` 固定で読み込む。`csv` 形式の `優先オプション` 列は任意入力で、v1では照合条件に使わず将来拡張用メモとして扱う。候補宿名ごとに `keyword` を生成して one-shot 取得するため、エリア総当たりは行わない。
+`list` は候補ファイルを `data/candidate_hotels.csv` 固定で読み込む。`csv` 形式の `優先オプション` 列は任意入力で、`care-kakenagashi|care-bath-rent|care-private-openair` を候補宿名ごとの keyword URL 条件に反映する。候補宿名ごとに `keyword` を生成して one-shot 取得するため、エリア総当たりは行わない。
 
 ### 6.4 固定実行設定（CLIオプション非公開）
 以下は初期リリースでCLIオプションを公開せず、固定値として扱う。
@@ -150,6 +151,9 @@ jalan-search list [options]
 | `list` 固定URL | `/uw/uwp2011/uww2011init.do` |
 | `list` 固定パラメータ | `distCd=06`, `rootCd=7701`, `screenId=FWPCTOP`, `ccnt=button-fw`, `image1=` |
 | `list` 候補宿名 | `keyword`（CP932エンコード） |
+| `list` `優先オプション=care-kakenagashi` | `careKake=1` |
+| `list` `優先オプション=care-bath-rent` | `careBathRent=1` |
+| `list` `優先オプション=care-private-openair` | `carePribateBath=1` |
 
 ## 7. 出力仕様
 ### 7.1 表示項目（text-list）
@@ -175,9 +179,9 @@ jalan-search list [options]
 
 ## 8. 実行フロー
 1. CLI引数検証（型、範囲、必須関係）
-2. `area` は `pref` 指定時に `area.xml` からSML展開（固定除外SMLを除く）、`list` は候補宿名から keyword URL を生成
+2. `area` は `pref` 指定時に `area.xml` からSML展開（固定除外SMLを除く）、`list` は候補宿名と `優先オプション` から keyword URL を生成
 3. Playwrightでページ取得（並列 + 遅延制御）
-4. `area` は次ページ（`idx`）を追跡、`list` は1候補名につき1ページのみ取得
+4. `area` は次ページ（`idx`）を追跡、`list` は1候補名（+候補オプション条件）につき1ページのみ取得
 5. 重複排除と整形
 6. `list` は候補照合（宿名部分一致/宿URLパス一致）を適用
 7. 固定フォーマット（text-list）で出力し、終了コードを返す

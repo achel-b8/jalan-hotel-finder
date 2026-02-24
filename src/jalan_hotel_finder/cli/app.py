@@ -19,6 +19,7 @@ from jalan_hotel_finder.application.search_services import (
     search_area,
     search_names_keyword_one_shot,
 )
+from jalan_hotel_finder.domain.name_matching import InvalidPreferredOptionError
 from jalan_hotel_finder.infrastructure.area_xml_resolver import (
     list_prefecture_names,
     resolve_sml_codes_for_prefecture,
@@ -136,6 +137,9 @@ def search_list_command(
 
     try:
         records = asyncio.run(run_search_names_service(user_input))
+    except InvalidPreferredOptionError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
     except (AreaSearchFailedError, NameSearchFailedError, CrawlFetchError) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=3) from error

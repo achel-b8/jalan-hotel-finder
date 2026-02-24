@@ -16,6 +16,7 @@ v1 CLI実装完了（2026-02-22）。
 
 - 実データの候補宿CSVは `data/candidate_hotels.csv` に配置しています。
 - 列は `宿名,URL,優先オプション` の3項目です（`優先オプション` は任意・複数指定可）。
+- `優先オプション` は `care-kakenagashi|care-bath-rent|care-private-openair` をサポートし、`list` keyword検索URLの `care*` 条件として反映されます。
 
 ## Dependency Setup
 
@@ -118,16 +119,17 @@ jalan-search [--help] <command> [options]
 
 | オプション | 必須 | 既定値 | 説明 |
 |---|---|---|---|
-| `--checkin YYYY-MM-DD` | 必須 | - | 入力体系統一のため必須（keyword検索URLには反映しない） |
+| `--checkin YYYY-MM-DD` | 必須 | - | keyword検索URLに `stayYear/stayMonth/stayDay` として反映 |
 | `--pref <都道府県名>` | 任意 | `area.xml` 上の全都道府県 | 複数指定可。keyword検索URLには反映しない |
-| `--adults <int>` | 任意 | `1` | 入力受理のみ（keyword検索URLには反映しない） |
-| `--nights <int>` | 任意 | `1` | 入力受理のみ（keyword検索URLには反映しない） |
+| `--adults <int>` | 任意 | `1` | keyword検索URLに `adultNum` として反映 |
+| `--nights <int>` | 任意 | `1` | keyword検索URLに `stayCount` として反映 |
 | `--maxPrice <int>` | 任意 | 無制限 | 1人1泊あたりの予算上限（円）。指定時は `maxPrice` として反映 |
-| `--meal-type <none\|breakfast\|dinner\|two_meals>` | 任意 | 指定なし | 入力受理のみ（keyword検索URLには反映しない） |
+| `--meal-type <none\|breakfast\|dinner\|two_meals>` | 任意 | 指定なし | keyword検索URLに `mealType` として反映 |
 | `--parallel <int>` | 任意 | `2` | 並列数（`1..10`） |
 
 補足:
 - `list` は候補ファイルを `data/candidate_hotels.csv` 固定で使用します（`--names-file` は非対応）。
+- 候補CSVの `優先オプション` は `care-kakenagashi|care-bath-rent|care-private-openair` を受理します。未知トークンがある場合は入力不備として終了コード `2` で終了します。
 - `area` で `--pref` 未指定の場合、検索対象エリアが空になり結果は0件になります。
 
 ### 実行例

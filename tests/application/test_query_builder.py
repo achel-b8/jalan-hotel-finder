@@ -144,6 +144,11 @@ def test_build_keyword_search_url_uses_cp932_percent_encoding() -> None:
     assert params["rootCd"] == ["7701"]
     assert params["screenId"] == ["FWPCTOP"]
     assert params["ccnt"] == ["button-fw"]
+    assert params["adultNum"] == ["1"]
+    assert params["stayCount"] == ["1"]
+    assert params["roomCount"] == ["1"]
+    assert params["dateUndecided"] == ["0"]
+    assert params["careBath"] == ["0"]
 
 
 def test_build_keyword_search_url_treats_auto_as_cp932() -> None:
@@ -165,3 +170,35 @@ def test_build_keyword_search_url_omits_max_price_when_max_price_is_unspecified(
     params = _parse_params(url)
 
     assert "maxPrice" not in params
+
+
+def test_build_keyword_search_url_includes_stay_and_preferred_options_when_specified() -> None:
+    user_input = SearchAreaInput(
+        checkin="2026-03-10",
+        adults=2,
+        nights=3,
+        meal_type=MealType.TWO_MEALS,
+    )
+
+    url = build_keyword_search_url(
+        keyword="ピリカレラ",
+        encoding=KeywordEncoding.CP932,
+        checkin=user_input.checkin,
+        adults=user_input.adults,
+        nights=user_input.nights,
+        meal_type=user_input.meal_type,
+        care_kakenagashi=True,
+        care_bath_rent=True,
+        care_private_openair=True,
+    )
+    params = _parse_params(url)
+
+    assert params["stayYear"] == ["2026"]
+    assert params["stayMonth"] == ["03"]
+    assert params["stayDay"] == ["10"]
+    assert params["adultNum"] == ["2"]
+    assert params["stayCount"] == ["3"]
+    assert params["mealType"] == ["3"]
+    assert params["careKake"] == ["1"]
+    assert params["careBathRent"] == ["1"]
+    assert params["carePribateBath"] == ["1"]

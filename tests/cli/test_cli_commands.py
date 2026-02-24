@@ -6,6 +6,7 @@ from jalan_hotel_finder.application.search_services import (
     AreaSearchFailedError,
     NameSearchFailedError,
 )
+from jalan_hotel_finder.domain.name_matching import InvalidPreferredOptionError
 cli_module = importlib.import_module("jalan_hotel_finder.cli.app")
 
 
@@ -250,6 +251,26 @@ def test_cli_returns_exit_code_2_for_input_validation_error() -> None:
             "北海道",
             "--parallel",
             "11",
+        ],
+    )
+
+    assert result.exit_code == 2
+
+
+def test_cli_returns_exit_code_2_for_invalid_preferred_option(monkeypatch) -> None:
+    async def _stub_run_search_names_service(user_input):
+        raise InvalidPreferredOptionError("unsupported preferred option")
+
+    monkeypatch.setattr(cli_module, "run_search_names_service", _stub_run_search_names_service)
+
+    result = runner.invoke(
+        app,
+        [
+            "list",
+            "--checkin",
+            "2026-03-10",
+            "--pref",
+            "北海道",
         ],
     )
 

@@ -12,6 +12,7 @@ from jalan_hotel_finder.application.search_services import (
     search_names_keyword_one_shot,
     search_names_local_filter,
 )
+from jalan_hotel_finder.domain.name_matching import InvalidPreferredOptionError
 
 
 class _FakeCrawler:
@@ -342,8 +343,22 @@ async def test_search_names_keyword_one_shot_fetches_each_keyword_once(tmp_path:
         checkin="2026-03-10",
         pref=["北海道"],
     )
-    keyword_url_1 = build_keyword_search_url("川島旅館", user_input.keyword_encoding)
-    keyword_url_2 = build_keyword_search_url("ピリカ", user_input.keyword_encoding)
+    keyword_url_1 = build_keyword_search_url(
+        "川島旅館",
+        user_input.keyword_encoding,
+        checkin=user_input.checkin,
+        adults=user_input.adults,
+        nights=user_input.nights,
+        meal_type=user_input.meal_type,
+    )
+    keyword_url_2 = build_keyword_search_url(
+        "ピリカ",
+        user_input.keyword_encoding,
+        checkin=user_input.checkin,
+        adults=user_input.adults,
+        nights=user_input.nights,
+        meal_type=user_input.meal_type,
+    )
     crawler = _TrackingCrawler(
         {
             keyword_url_1: "kw1",
@@ -402,7 +417,15 @@ async def test_search_names_keyword_one_shot_passes_max_price_to_keyword_url(
         pref=["北海道"],
         max_price=5000,
     )
-    expected_url = build_keyword_search_url("札幌", user_input.keyword_encoding, max_price=5000)
+    expected_url = build_keyword_search_url(
+        "札幌",
+        user_input.keyword_encoding,
+        max_price=5000,
+        checkin=user_input.checkin,
+        adults=user_input.adults,
+        nights=user_input.nights,
+        meal_type=user_input.meal_type,
+    )
     crawler = _TrackingCrawler({expected_url: "kw1"})
 
     actual = await search_names_keyword_one_shot(
@@ -455,8 +478,22 @@ async def test_search_names_keyword_one_shot_uses_loaded_csv_candidates_for_url_
         checkin="2026-03-10",
         pref=["北海道"],
     )
-    keyword_url_1 = build_keyword_search_url("川島旅館", user_input.keyword_encoding)
-    keyword_url_2 = build_keyword_search_url("ピリカ", user_input.keyword_encoding)
+    keyword_url_1 = build_keyword_search_url(
+        "川島旅館",
+        user_input.keyword_encoding,
+        checkin=user_input.checkin,
+        adults=user_input.adults,
+        nights=user_input.nights,
+        meal_type=user_input.meal_type,
+    )
+    keyword_url_2 = build_keyword_search_url(
+        "ピリカ",
+        user_input.keyword_encoding,
+        checkin=user_input.checkin,
+        adults=user_input.adults,
+        nights=user_input.nights,
+        meal_type=user_input.meal_type,
+    )
     crawler = _TrackingCrawler(
         {
             keyword_url_1: "kw1",
@@ -501,3 +538,65 @@ async def test_search_names_keyword_one_shot_uses_loaded_csv_candidates_for_url_
         record["matched_name"].startswith("https://www.jalan.net/yad377160/")
         for record in actual
     )
+
+
+@pytest.mark.asyncio
+async def test_search_names_keyword_one_shot_applies_csv_preferred_options_to_keyword_url(
+    tmp_path: Path,
+) -> None:
+    names_file = tmp_path / "candidate_hotels.csv"
+    names_file.write_text(
+        "宿名,URL,優先オプション\n"
+        "川島旅館,https://www.jalan.net/yad386526/,care-kakenagashi|care-bath-rent\n",
+        encoding="utf-8",
+    )
+    user_input = SearchNamesInput(
+        names_file=names_file,
+        checkin="2026-03-10",
+        pref=["北海道"],
+    )
+    expected_url = build_keyword_search_url(
+        "川島旅館",
+        user_input.keyword_encoding,
+        checkin=user_input.checkin,
+        adults=user_input.adults,
+        nights=user_input.nights,
+        meal_type=user_input.meal_type,
+        care_kakenagashi=True,
+        care_bath_rent=True,
+        care_private_openair=False,
+    )
+    crawler = _TrackingCrawler({expected_url: "kw1"})
+
+    actual = await search_names_keyword_one_shot(
+        user_input=user_input,
+        crawler=crawler,
+        hotel_card_extractor=lambda _: [],
+    )
+
+    assert actual == []
+    assert crawler.called_urls == [expected_url]
+
+
+@pytest.mark.asyncio
+async def test_search_names_keyword_one_shot_raises_for_unsupported_csv_preferred_option(
+    tmp_path: Path,
+) -> None:
+    names_file = tmp_path / "candidate_hotels.csv"
+    names_file.write_text(
+        "宿名,URL,優先オプション\n"
+        "川島旅館,https://www.jalan.net/yad386526/,invalid-option\n",
+        encoding="utf-8",
+    )
+    user_input = SearchNamesInput(
+        names_file=names_file,
+        checkin="2026-03-10",
+        pref=["北海道"],
+    )
+
+    with pytest.raises(InvalidPreferredOptionError):
+        await search_names_keyword_one_shot(
+            user_input=user_input,
+            crawler=_TrackingCrawler({}),
+            hotel_card_extractor=lambda _: [],
+        )

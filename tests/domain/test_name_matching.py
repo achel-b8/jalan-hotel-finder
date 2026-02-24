@@ -1,8 +1,13 @@
 from pathlib import Path
 
+import pytest
+
 from jalan_hotel_finder.domain.name_matching import (
+    InvalidPreferredOptionError,
+    PreferredOption,
     filter_hotels_by_names,
     load_hotel_names,
+    load_preferred_options_by_name,
 )
 
 
@@ -71,3 +76,38 @@ def test_filter_hotels_by_names_matches_when_candidate_is_hotel_url() -> None:
     assert actual[0]["matched_name"] == target_urls[0]
     assert actual[1]["hotel_name"] == "ピリカ"
     assert actual[1]["matched_name"] == target_urls[1]
+
+
+def test_load_preferred_options_by_name_reads_supported_tokens(tmp_path: Path) -> None:
+    file_path = tmp_path / "candidates.csv"
+    file_path.write_text(
+        "宿名,URL,優先オプション\n"
+        "川島旅館,https://www.jalan.net/yad386526/,care-kakenagashi|care-bath-rent\n"
+        "川島旅館,https://www.jalan.net/yad386526/,care-private-openair\n"
+        "ピリカ,https://www.jalan.net/yad377160/,\n",
+        encoding="utf-8",
+    )
+
+    actual = load_preferred_options_by_name(file_path)
+
+    assert actual == {
+        "川島旅館": {
+            PreferredOption.CARE_KAKENAGASHI,
+            PreferredOption.CARE_BATH_RENT,
+            PreferredOption.CARE_PRIVATE_OPENAIR,
+        }
+    }
+
+
+def test_load_preferred_options_by_name_rejects_unsupported_token(tmp_path: Path) -> None:
+    file_path = tmp_path / "candidates.csv"
+    file_path.write_text(
+        "宿名,URL,優先オプション\n"
+        "川島旅館,https://www.jalan.net/yad386526/,invalid-option\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(InvalidPreferredOptionError) as error:
+        load_preferred_options_by_name(file_path)
+
+    assert "invalid-option" in str(error.value)

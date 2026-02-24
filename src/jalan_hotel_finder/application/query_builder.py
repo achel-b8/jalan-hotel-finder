@@ -31,11 +31,13 @@ def build_search_area_url(sml_code: str, user_input: SearchAreaInput) -> str:
         "stayDay": f"{user_input.checkin.day:02d}",
         "adultNum": str(user_input.adults),
         "stayCount": str(user_input.nights),
-        "mealType": _MEAL_TYPE_TO_PARAM[user_input.meal_type],
         "roomCount": "1",
         "dateUndecided": "0",
         "careBath": "0",
     }
+
+    if user_input.meal_type is not None:
+        query_params["mealType"] = _MEAL_TYPE_TO_PARAM[user_input.meal_type]
 
     if user_input.care_kakenagashi:
         query_params["careKake"] = "1"

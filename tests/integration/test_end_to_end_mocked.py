@@ -1,5 +1,4 @@
 from pathlib import Path
-import json
 
 import pytest
 
@@ -41,7 +40,7 @@ def _fixture(path: str) -> str:
 
 
 @pytest.mark.asyncio
-async def test_integration_us01_area_search_json_snapshot() -> None:
+async def test_integration_us01_area_search_list_snapshot() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10", pref=["北海道"])
     start_url = build_search_area_url("SML_010202", user_input)
     second_url = "https://www.jalan.net/010000/LRG_010200/SML_010202/?idx=30"
@@ -59,21 +58,24 @@ async def test_integration_us01_area_search_json_snapshot() -> None:
         crawler=crawler,
     )
 
-    actual_json = serialize_search_results(records)
-    expected_json = (
-        '[{"hotel_name": "札幌温泉ホテル", "hotel_url": "https://www.jalan.net/yad100000/", '
-        '"plan_name": "夕朝食付き", "price": 10000, "search_type": "area", "area": "SML_010202", '
-        '"hotel_url_normalized": "/yad100000"}, '
-        '{"hotel_name": "函館シティホテル", "hotel_url": "https://www.jalan.net/yad200000/", '
-        '"plan_name": "朝食付き", "price": 12000, "search_type": "area", "area": "SML_010202", '
-        '"hotel_url_normalized": "/yad200000"}]'
+    actual_output = serialize_search_results(records)
+    expected_output = (
+        "検索結果: 2件\n"
+        "\n"
+        "[1] 宿名: 札幌温泉ホテル\n"
+        "URL: https://www.jalan.net/yad100000/\n"
+        "  - プラン1: 夕朝食付き / 10,000円\n"
+        "\n"
+        "[2] 宿名: 函館シティホテル\n"
+        "URL: https://www.jalan.net/yad200000/\n"
+        "  - プラン1: 朝食付き / 12,000円"
     )
 
-    assert actual_json == expected_json
+    assert actual_output == expected_output
 
 
 @pytest.mark.asyncio
-async def test_integration_us02_names_search_json_snapshot(tmp_path: Path) -> None:
+async def test_integration_us02_names_search_list_snapshot(tmp_path: Path) -> None:
     names_file = tmp_path / "names.txt"
     names_file.write_text("札幌\n", encoding="utf-8")
 
@@ -96,15 +98,12 @@ async def test_integration_us02_names_search_json_snapshot(tmp_path: Path) -> No
         names_loader=lambda _: ["札幌"],
     )
 
-    actual_json = serialize_search_results(records)
-    assert json.loads(actual_json) == [
-        {
-            "hotel_name": "札幌温泉ホテル",
-            "hotel_url": "https://www.jalan.net/yad100000/",
-            "plan_name": "夕朝食付き",
-            "price": 10000,
-            "search_type": "name",
-            "hotel_url_normalized": "/yad100000",
-            "matched_name": "札幌",
-        }
-    ]
+    actual_output = serialize_search_results(records)
+    expected_output = (
+        "検索結果: 1件\n"
+        "\n"
+        "[1] 宿名: 札幌温泉ホテル\n"
+        "URL: https://www.jalan.net/yad100000/\n"
+        "  - プラン1: 夕朝食付き / 10,000円"
+    )
+    assert actual_output == expected_output

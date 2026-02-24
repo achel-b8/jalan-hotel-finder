@@ -52,7 +52,7 @@
 ### 5.1 US-01 受け入れ要件
 1. `--pref` 指定時、CLIは `area.xml` から配下SMLを展開して検索対象URLを生成できること。
 2. エリア検索でページネーション（`idx=0,30,60...`）を最後まで辿れること。
-3. 出力には最低限 `hotel_name`, `hotel_url`, `plan_name`, `price` が含まれること。
+3. 出力には最低限 `宿名`, `URL`, `プラン名`, `価格` が含まれること。
 4. 同一宿はURLパス単位で重複排除されること（クエリ差分は同一扱い）。
 5. 並列数未指定時は2で動作し、`--parallel` は1〜10のみ受け付けること。
 6. 初期リリースでは失敗ポリシーを `stop` 固定とし、1エリア失敗で終了コード3を返すこと。
@@ -64,7 +64,7 @@
 1. `list` コマンドは既定ファイル（`data/candidate_hotels.csv`）を固定で使い、候補ファイルパスのCLI指定を受け付けないこと。
 2. `list` は候補宿名ごとに `uww2011init.do?keyword=...` を1回だけ取得し、ページネーションを辿らないこと。
 3. 取得結果に対して宿名部分一致または宿URLパス一致で絞り込めること。
-4. 0件時でも異常終了せず、空配列JSONを出力できること。
+4. 0件時でも異常終了せず、`該当する宿はありませんでした。` を出力できること。
 5. 照合後も重複排除ルール（URLパス単位）が適用されること。
 
 ### 5.3 US-03 受け入れ要件（将来要件）
@@ -87,7 +87,7 @@ jalan-search list [options]
 | `--pref` | string（複数可） | 任意 | - | 都道府県名 |
 | `--adults` | int | 任意 | 1 | 大人人数 |
 | `--nights` | int | 任意 | 1 | 泊数 |
-| `--meal-type` | enum | 任意 | `two_meals` | `none`,`breakfast`,`dinner`,`two_meals` |
+| `--meal-type` | enum | 任意 | 指定なし（`mealType` 未付与） | `none`,`breakfast`,`dinner`,`two_meals` |
 | `--care-kakenagashi` | flag | 任意 | true | 温泉掛け流し |
 | `--care-bath-rent` | flag | 任意 | false | 貸切風呂・貸切露天 |
 | `--care-private-openair` | flag | 任意 | false | じゃらんの `carePribateBath=1`（露天風呂付き客室）に対応。`Pribate` はじゃらん側表記を踏襲 |
@@ -100,7 +100,7 @@ jalan-search list [options]
 | `--pref` | string（複数可） | 任意 | 全都道府県 | 互換入力として受理（keyword検索URLには反映しない） |
 | `--adults` | int | 任意 | 1 | 大人人数 |
 | `--nights` | int | 任意 | 1 | 泊数 |
-| `--meal-type` | enum | 任意 | `two_meals` | 食事条件 |
+| `--meal-type` | enum | 任意 | 指定なし（`mealType` 未付与） | 食事条件 |
 | `--parallel` | int | 任意 | 2 | 並列数（1〜10） |
 
 `list` は候補ファイルを `data/candidate_hotels.csv` 固定で読み込む。`csv` 形式の `優先オプション` 列は任意入力で、v1では照合条件に使わず将来拡張用メモとして扱う。候補宿名ごとに `keyword` を生成して one-shot 取得するため、エリア総当たりは行わない。
@@ -112,9 +112,9 @@ jalan-search list [options]
 |---|---|---|
 | 失敗ポリシー | `stop` | 1エリア失敗で終了コード3 |
 | 除外SMLコード | `SML_013508` | 2026-02-24観測で恒常的にエラー画面を返すため固定除外 |
-| 出力先（結果データ） | `stdout` | JSON本文のみを出力 |
+| 出力先（結果データ） | `stdout` | 人間向けリスト本文のみを出力 |
 | ログ/進捗/エラー出力先 | `stderr` | `stdout` には混在させない |
-| 出力フォーマット | `json` | CSV/NDJSONは将来拡張 |
+| 出力フォーマット | `text-list` | JSON/CSV/NDJSONは将来拡張 |
 | ヘッドレス実行 | `true` | 非ヘッドレス起動オプションは未公開 |
 | 待機時間 | 100ms | エリア間待機の暫定安全値（観測に応じて将来調整） |
 | ページロード待機 | 30000ms | 内部タイムアウト設定 |
@@ -135,6 +135,7 @@ jalan-search list [options]
 | `--checkin` | `stayYear`, `stayMonth`, `stayDay` |
 | `--adults` | `adultNum` |
 | `--nights` | `stayCount` |
+| `--meal-type` 未指定 | `mealType` を付与しない |
 | `--meal-type none/breakfast/dinner/two_meals` | `mealType=0/1/2/3` |
 | `--care-kakenagashi` | `careKake=1` |
 | `--care-bath-rent` | `careBathRent=1` |
@@ -147,19 +148,16 @@ jalan-search list [options]
 | `list` 候補宿名 | `keyword`（CP932エンコード） |
 
 ## 7. 出力仕様
-### 7.1 JSON項目
-- `hotel_name` (string)
-- `hotel_url` (string)
-- `hotel_url_normalized` (string, 重複判定キー)
-- `plan_name` (string)
-- `price` (`int`。取得不能または数値化不能時は `null`)
-- `search_type` (`area` or `name`)
-- `matched_name` (string, `list` 時のみ。`宿名` または `URL` の一致した候補値)
-- `area` (string, `area` 時のみ。例: `SML_010202`)
+### 7.1 表示項目（text-list）
+- 宿名
+- 宿URL
+- プラン名
+- 価格（`int` を3桁区切り + `円` で表示。取得不能時は `価格未取得`）
+- v1では重複排除後の `1宿1件` を表示し、1宿あたり表示プランは1件（先勝ち）
 
 ### 7.2 初期リリース出力形態
 - 出力先: 標準出力（`stdout`）
-- 出力形式: JSON（固定）
+- 出力形式: 人間向けリスト（`text-list` 固定）
 - ログ/進捗/エラー出力: 標準エラー（`stderr`）固定
 
 ### 7.3 正規化ルール
@@ -167,6 +165,7 @@ jalan-search list [options]
 - 同一 `hotel_url_normalized` は1件に統合（最初に取得したレコードを優先）
 
 ### 7.4 将来拡張
+- JSON出力
 - NDJSON出力
 - CSV出力
 
@@ -177,7 +176,7 @@ jalan-search list [options]
 4. `area` は次ページ（`idx`）を追跡、`list` は1候補名につき1ページのみ取得
 5. 重複排除と整形
 6. `list` は候補照合（宿名部分一致/宿URLパス一致）を適用
-7. 固定フォーマット（JSON）で出力し、終了コードを返す
+7. 固定フォーマット（text-list）で出力し、終了コードを返す
 
 ## 9. エラー処理・終了コード
 | 終了コード | 条件 |
@@ -188,7 +187,7 @@ jalan-search list [options]
 | `3` | 取得失敗（初期リリースは `stop` 固定で停止） |
 
 エラー時の標準エラー出力には以下を含める。
-- 結果JSON以外のメッセージはすべて `stderr` に出力する。
+- 結果本文以外のメッセージはすべて `stderr` に出力する。
 - 直前URL
 - 対象エリア（存在する場合）
 - 取得済み件数

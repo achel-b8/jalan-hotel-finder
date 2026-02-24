@@ -74,6 +74,15 @@ def test_build_search_area_url_sets_fixed_query_params() -> None:
     assert params["careBath"] == ["0"]
 
 
+def test_build_search_area_url_omits_meal_type_when_unspecified() -> None:
+    user_input = SearchAreaInput(checkin="2026-03-10")
+
+    url = build_search_area_url("SML_010202", user_input)
+    params = _parse_params(url)
+
+    assert "mealType" not in params
+
+
 def test_build_search_area_url_includes_care_params_when_enabled() -> None:
     user_input = SearchAreaInput(
         checkin="2026-03-10",

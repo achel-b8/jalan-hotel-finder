@@ -21,7 +21,7 @@ def test_hotel_url_normalized_removes_query_and_trailing_slash() -> None:
     )
 
 
-def test_deduplication_merges_records_when_query_is_different() -> None:
+def test_deduplication_keeps_records_when_query_is_different_within_limit() -> None:
     records = [
         {
             "hotel_name": "A",
@@ -39,11 +39,12 @@ def test_deduplication_merges_records_when_query_is_different() -> None:
 
     actual = deduplicate_hotels_by_normalized_url(records)
 
-    assert len(actual) == 1
+    assert len(actual) == 2
     assert actual[0]["hotel_url_normalized"] == "/yad111111"
+    assert actual[1]["hotel_url_normalized"] == "/yad111111"
 
 
-def test_deduplication_merges_records_when_trailing_slash_is_different() -> None:
+def test_deduplication_normalizes_trailing_slash_and_keeps_records_within_limit() -> None:
     records = [
         {
             "hotel_name": "A",
@@ -61,27 +62,29 @@ def test_deduplication_merges_records_when_trailing_slash_is_different() -> None
 
     actual = deduplicate_hotels_by_normalized_url(records)
 
-    assert len(actual) == 1
+    assert len(actual) == 2
     assert actual[0]["hotel_url_normalized"] == "/yad222222"
+    assert actual[1]["hotel_url_normalized"] == "/yad222222"
 
 
-def test_deduplication_keeps_first_record_on_duplicate() -> None:
+def test_deduplication_limits_to_five_records_per_hotel_by_default() -> None:
     records = [
         {
             "hotel_name": "A",
-            "hotel_url": "https://www.jalan.net/yad333333/?plan=first",
-            "plan_name": "first plan",
-            "price": 10000,
-        },
-        {
-            "hotel_name": "A",
-            "hotel_url": "https://www.jalan.net/yad333333/?plan=second",
-            "plan_name": "second plan",
-            "price": 9000,
-        },
+            "hotel_url": f"https://www.jalan.net/yad333333/?plan={index}",
+            "plan_name": f"plan {index}",
+            "price": 10000 + index,
+        }
+        for index in range(1, 7)
     ]
 
     actual = deduplicate_hotels_by_normalized_url(records)
 
-    assert actual[0]["plan_name"] == "first plan"
-    assert actual[0]["price"] == 10000
+    assert len(actual) == 5
+    assert [record["plan_name"] for record in actual] == [
+        "plan 1",
+        "plan 2",
+        "plan 3",
+        "plan 4",
+        "plan 5",
+    ]

@@ -28,7 +28,10 @@ from jalan_hotel_finder.infrastructure.crawler import (
     PlaywrightCrawler,
     PlaywrightPageFetcher,
 )
-from jalan_hotel_finder.output.json_formatter import serialize_search_results
+from jalan_hotel_finder.output.json_formatter import (
+    DEFAULT_MAX_PLANS_PER_HOTEL,
+    format_search_results,
+)
 
 
 app = typer.Typer(help="jalan hotel finder CLI")
@@ -41,7 +44,7 @@ def search_area_command(
     pref: list[str] | None = typer.Option(None, "--pref"),
     adults: int = typer.Option(1, "--adults"),
     nights: int = typer.Option(1, "--nights"),
-    meal_type: MealType = typer.Option(MealType.TWO_MEALS, "--meal-type"),
+    meal_type: MealType | None = typer.Option(None, "--meal-type"),
     care_kakenagashi: bool = typer.Option(True, "--care-kakenagashi/--no-care-kakenagashi"),
     care_bath_rent: bool = typer.Option(False, "--care-bath-rent/--no-care-bath-rent"),
     care_private_openair: bool = typer.Option(
@@ -50,7 +53,7 @@ def search_area_command(
     ),
     parallel: int = typer.Option(2, "--parallel"),
 ) -> None:
-    """Run area search and print JSON to stdout."""
+    """Run area search and print a human-readable list to stdout."""
     try:
         user_input = SearchAreaInput(
             checkin=checkin,
@@ -76,7 +79,12 @@ def search_area_command(
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error
 
-    typer.echo(serialize_search_results(records))
+    typer.echo(
+        format_search_results(
+            records,
+            max_plans_per_hotel=DEFAULT_MAX_PLANS_PER_HOTEL,
+        )
+    )
 
 
 @app.command("list")
@@ -85,10 +93,10 @@ def search_list_command(
     pref: list[str] | None = typer.Option(None, "--pref"),
     adults: int = typer.Option(1, "--adults"),
     nights: int = typer.Option(1, "--nights"),
-    meal_type: MealType = typer.Option(MealType.TWO_MEALS, "--meal-type"),
+    meal_type: MealType | None = typer.Option(None, "--meal-type"),
     parallel: int = typer.Option(2, "--parallel"),
 ) -> None:
-    """Run candidate-list search (keyword one-shot mode) and print JSON to stdout."""
+    """Run candidate-list search and print a human-readable list to stdout."""
     effective_pref = pref or list_prefecture_names()
 
     try:
@@ -114,7 +122,12 @@ def search_list_command(
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error
 
-    typer.echo(serialize_search_results(records))
+    typer.echo(
+        format_search_results(
+            records,
+            max_plans_per_hotel=DEFAULT_MAX_PLANS_PER_HOTEL,
+        )
+    )
 
 
 @app.command("coupon", hidden=True)

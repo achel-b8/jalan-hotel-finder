@@ -1,4 +1,3 @@
-import json
 import importlib
 
 from typer.testing import CliRunner
@@ -42,8 +41,10 @@ def test_cli_search_area_success_exit_code_0(monkeypatch) -> None:
     )
 
     assert result.exit_code == 0
-    parsed = json.loads(result.stdout)
-    assert parsed[0]["search_type"] == "area"
+    assert "検索結果: 1件" in result.stdout
+    assert "[1] 宿名: 札幌温泉ホテル" in result.stdout
+    assert "URL: https://www.jalan.net/yad123456/" in result.stdout
+    assert "  - プラン1: 夕朝食付き / 12,000円" in result.stdout
 
 
 def test_cli_search_names_success_exit_code_0(monkeypatch, tmp_path) -> None:
@@ -79,9 +80,11 @@ def test_cli_search_names_success_exit_code_0(monkeypatch, tmp_path) -> None:
     )
 
     assert result.exit_code == 0
-    parsed = json.loads(result.stdout)
-    assert parsed[0]["search_type"] == "name"
-    assert parsed[0]["matched_name"] == "札幌"
+    assert "検索結果: 1件" in result.stdout
+    assert "[1] 宿名: 札幌温泉ホテル" in result.stdout
+    assert "URL: https://www.jalan.net/yad123456/" in result.stdout
+    assert "  - プラン1: 夕朝食付き / 12,000円" in result.stdout
+    assert "matched_name" not in result.stdout
 
 
 def test_cli_search_names_uses_defaults_for_names_file_and_pref(monkeypatch) -> None:
@@ -105,6 +108,7 @@ def test_cli_search_names_uses_defaults_for_names_file_and_pref(monkeypatch) -> 
     )
 
     assert result.exit_code == 0
+    assert result.stdout.strip() == "該当する宿はありませんでした。"
     assert captured["names_file"].endswith("data/candidate_hotels.csv")
     assert captured["pref"] == ["北海道", "青森県"]
 

@@ -31,7 +31,7 @@ class SearchAreaInput(BaseModel):
     pref: list[str] = Field(default_factory=list)
     adults: int = Field(default=1, ge=1)
     nights: int = Field(default=1, ge=1)
-    meal_type: MealType = MealType.TWO_MEALS
+    meal_type: MealType | None = None
     care_kakenagashi: bool = True
     care_bath_rent: bool = False
     care_private_openair: bool = False
@@ -47,5 +47,5 @@ class SearchNamesInput(BaseModel):
     pref: list[str] = Field(min_length=1)
     adults: int = Field(default=1, ge=1)
     nights: int = Field(default=1, ge=1)
-    meal_type: MealType = MealType.TWO_MEALS
+    meal_type: MealType | None = None
     parallel: int = Field(default=2, ge=1, le=10)

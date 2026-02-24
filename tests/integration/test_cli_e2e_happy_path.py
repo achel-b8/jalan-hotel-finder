@@ -1,6 +1,6 @@
 import importlib
-import json
 import os
+import re
 from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -63,7 +63,14 @@ def _patch_live_playwright_route(monkeypatch) -> dict[str, int]:
     return fetch_count
 
 
-def test_e2e_live_search_area_uses_real_playwright_and_returns_json(monkeypatch) -> None:
+def _extract_result_count(output: str) -> int:
+    matched = re.search(r"検索結果:\s*(\d+)件", output)
+    if matched is None:
+        return 0
+    return int(matched.group(1))
+
+
+def test_e2e_live_search_area_uses_real_playwright_and_returns_list(monkeypatch) -> None:
     fetch_count = _patch_live_playwright_route(monkeypatch)
 
     result = runner.invoke(
@@ -82,15 +89,13 @@ def test_e2e_live_search_area_uses_real_playwright_and_returns_json(monkeypatch)
     assert result.exit_code == 0, result.stderr
     assert fetch_count["value"] >= 1
 
-    payload = json.loads(result.stdout)
-    assert isinstance(payload, list)
-    assert payload, "live area search returned empty payload"
-    assert payload[0]["search_type"] == "area"
-    assert "area" in payload[0]
-    assert "hotel_url_normalized" in payload[0]
+    result_count = _extract_result_count(result.stdout)
+    assert result_count >= 1, "live area search returned empty output"
+    assert "宿名:" in result.stdout
+    assert "URL: https://www.jalan.net/yad" in result.stdout
 
 
-def test_e2e_live_search_names_uses_real_playwright_and_returns_json(
+def test_e2e_live_search_names_uses_real_playwright_and_returns_list(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -121,15 +126,13 @@ def test_e2e_live_search_names_uses_real_playwright_and_returns_json(
     assert result.exit_code == 0, result.stderr
     assert fetch_count["value"] >= 1
 
-    payload = json.loads(result.stdout)
-    assert isinstance(payload, list)
-    assert payload, "live names search returned empty payload"
+    result_count = _extract_result_count(result.stdout)
+    assert result_count >= 1, "live names search returned empty output"
+    assert "宿名:" in result.stdout
     assert any(
-        record["hotel_url_normalized"] in _EXPECTED_LIVE_NORMALIZED_URLS for record in payload
+        f"https://www.jalan.net{normalized_url}/" in result.stdout
+        for normalized_url in _EXPECTED_LIVE_NORMALIZED_URLS
     )
-    for record in payload:
-        assert record["search_type"] == "name"
-        assert "matched_name" in record
 
 
 def test_e2e_live_search_names_with_default_pref_uses_real_playwright(
@@ -162,9 +165,9 @@ def test_e2e_live_search_names_with_default_pref_uses_real_playwright(
     assert result.exit_code == 0, result.stderr
     assert fetch_count["value"] >= 1
 
-    payload = json.loads(result.stdout)
-    assert isinstance(payload, list)
-    assert payload, "live names search with default pref returned empty payload"
+    result_count = _extract_result_count(result.stdout)
+    assert result_count >= 1, "live names search with default pref returned empty output"
     assert any(
-        record["hotel_url_normalized"] in _EXPECTED_LIVE_NORMALIZED_URLS for record in payload
+        f"https://www.jalan.net{normalized_url}/" in result.stdout
+        for normalized_url in _EXPECTED_LIVE_NORMALIZED_URLS
     )

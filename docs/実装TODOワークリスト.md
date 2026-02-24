@@ -178,17 +178,17 @@
   - 照合後も重複排除維持
 - 完了条件: `CLI仕様書 5.2` を満たす。
 
-### [x] T12: JSON出力整形（stdout固定）
+### [x] T12: text-list出力整形（stdout固定）
 - 目的: 出力仕様をCLIから分離して固定する。
 - 成果物:
-  - レコード列→JSON文字列のシリアライザ
-  - `search_type`, `area`, `matched_name` の出力整合
+  - レコード列→人間向けリスト文字列のフォーマッタ
+  - 必須4項目（宿名/URL/プラン名/価格）の出力整合
 - 依存タスク: T10, T11
 - 前提条件: なし
 - テスト:
   - `search area` 形式
   - `list` 形式
-  - 空配列出力
+  - 0件時メッセージ出力
 - 完了条件: `CLI仕様書 7.1/7.2` を満たす。
 
 ### [x] T13: Typer CLI実装（`area` / `list`）
@@ -216,7 +216,7 @@
 - テスト:
   - US-01/US-02 の代表シナリオ
   - 終了コードポリシー
-  - JSON出力のスナップショット
+  - text-list出力のスナップショット
 - 完了条件: `CLI仕様書 5` の全項目に対応テストが存在する。
 
 ### [ ] T15: `search area` の本格並列化（エリア単位）
@@ -269,14 +269,14 @@
 | 要件ID | テストID（主要） |
 |---|---|
 | US-01-1 `pref -> SML展開` | `tests/infrastructure/test_area_xml_resolver.py::test_resolves_sml_codes_for_representative_prefecture` / `tests/infrastructure/test_area_xml_resolver.py::test_excludes_fixed_blocked_sml_codes_from_results` |
-| US-01-2 `ページネーション追跡` | `tests/application/test_pagination.py::test_build_next_page_url_increments_by_30` / `tests/integration/test_end_to_end_mocked.py::test_integration_us01_area_search_json_snapshot` |
+| US-01-2 `ページネーション追跡` | `tests/application/test_pagination.py::test_build_next_page_url_increments_by_30` / `tests/integration/test_end_to_end_mocked.py::test_integration_us01_area_search_list_snapshot` |
 | US-01-3 `hotel_name/url/plan/price出力` | `tests/infrastructure/test_hotel_card_extractor.py::test_extracts_required_fields_from_normal_html` / `tests/infrastructure/test_hotel_card_extractor.py::test_extracts_keyword_result_cards_from_open_yado_syosai_links` |
 | US-01-4 `URLパス単位の重複排除` | `tests/domain/test_hotel_deduplication.py::test_deduplication_merges_records_when_query_is_different` / `tests/application/test_search_services.py::test_search_area_deduplicates_across_multiple_sml` |
 | US-01-5 `parallel=1..10` | `tests/application/test_input_models.py::test_rejects_parallel_over_limit_for_search_area` / `tests/infrastructure/test_crawler.py::test_parallel_limit_is_respected_with_semaphore` |
 | US-01-6 `1エリア失敗で停止(終了コード3)` | `tests/application/test_search_services.py::test_search_area_raises_when_one_area_fails` / `tests/cli/test_cli_commands.py::test_cli_returns_exit_code_3_for_fetch_failure` |
 | US-02-1 `names-file既定値 + txt/csv入力` | `tests/domain/test_name_matching.py::test_load_hotel_names_reads_one_name_per_line` / `tests/domain/test_name_matching.py::test_load_hotel_names_reads_csv_name_url_and_options_columns` / `tests/cli/test_cli_commands.py::test_cli_search_names_uses_defaults_for_names_file_and_pref` |
 | US-02-2 `keyword one-shot + 宿名部分一致/URL一致` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` / `tests/application/test_search_services.py::test_search_names_keyword_one_shot_uses_loaded_csv_candidates_for_url_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_matches_when_candidate_is_hotel_url` |
-| US-02-3 `0件でも正常/空JSON` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_returns_empty_when_only_url_candidates` / `tests/output/test_json_formatter.py::test_serialize_empty_records` |
+| US-02-3 `0件でも正常/該当なしメッセージ` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_returns_empty_when_only_url_candidates` / `tests/output/test_json_formatter.py::test_shows_message_when_no_records` |
 | US-02-4 `照合後も重複排除維持` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` |
 | US-03-1 `coupon非公開(未対応)` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |
 | US-03-2 `未対応要求はstderr+終了コード2` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |

@@ -74,11 +74,11 @@ def _extractor_from_marker(html: str) -> list[dict[str, Any]]:
 
 
 @pytest.mark.asyncio
-async def test_search_area_deduplicates_across_multiple_sml() -> None:
+async def test_search_area_keeps_up_to_five_plans_per_hotel_across_multiple_sml() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10", pref=["北海道", "青森県"])
     html_by_url = {
-        "https://www.jalan.net/010000/LRG_010200/SML_010202/?stayYear=2026&stayMonth=03&stayDay=10&adultNum=1&stayCount=1&mealType=3&roomCount=1&dateUndecided=0&careBath=0&careKake=1": "area1",
-        "https://www.jalan.net/020000/LRG_020200/SML_020202/?stayYear=2026&stayMonth=03&stayDay=10&adultNum=1&stayCount=1&mealType=3&roomCount=1&dateUndecided=0&careBath=0&careKake=1": "area2",
+        "https://www.jalan.net/010000/LRG_010200/SML_010202/?stayYear=2026&stayMonth=03&stayDay=10&adultNum=1&stayCount=1&roomCount=1&dateUndecided=0&careBath=0&careKake=1": "area1",
+        "https://www.jalan.net/020000/LRG_020200/SML_020202/?stayYear=2026&stayMonth=03&stayDay=10&adultNum=1&stayCount=1&roomCount=1&dateUndecided=0&careBath=0&careKake=1": "area2",
     }
     crawler = _FakeCrawler(html_by_url=html_by_url)
 
@@ -90,15 +90,17 @@ async def test_search_area_deduplicates_across_multiple_sml() -> None:
         next_page_extractor=lambda html, url: None,
     )
 
-    assert len(actual) == 1
+    assert len(actual) == 2
     assert actual[0]["plan_name"] == "先勝ちプラン"
+    assert actual[1]["plan_name"] == "後勝ちプラン"
     assert actual[0]["hotel_url_normalized"] == "/yad123456"
+    assert actual[1]["hotel_url_normalized"] == "/yad123456"
 
 
 @pytest.mark.asyncio
 async def test_search_area_raises_when_one_area_fails() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10", pref=["北海道"])
-    target_url = "https://www.jalan.net/010000/LRG_010200/SML_010202/?stayYear=2026&stayMonth=03&stayDay=10&adultNum=1&stayCount=1&mealType=3&roomCount=1&dateUndecided=0&careBath=0&careKake=1"
+    target_url = "https://www.jalan.net/010000/LRG_010200/SML_010202/?stayYear=2026&stayMonth=03&stayDay=10&adultNum=1&stayCount=1&roomCount=1&dateUndecided=0&careBath=0&careKake=1"
     crawler = _FakeCrawler(html_by_url={}, error_urls={target_url})
 
     with pytest.raises(AreaSearchFailedError):
@@ -114,7 +116,7 @@ async def test_search_area_raises_when_one_area_fails() -> None:
 @pytest.mark.asyncio
 async def test_search_area_returns_empty_when_no_records() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10", pref=["北海道"])
-    url = "https://www.jalan.net/010000/LRG_010200/SML_010202/?stayYear=2026&stayMonth=03&stayDay=10&adultNum=1&stayCount=1&mealType=3&roomCount=1&dateUndecided=0&careBath=0&careKake=1"
+    url = "https://www.jalan.net/010000/LRG_010200/SML_010202/?stayYear=2026&stayMonth=03&stayDay=10&adultNum=1&stayCount=1&roomCount=1&dateUndecided=0&careBath=0&careKake=1"
     crawler = _FakeCrawler(html_by_url={url: "empty"})
 
     actual = await search_area(
@@ -213,7 +215,9 @@ async def test_search_names_local_filter_returns_empty_when_no_match(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_search_names_local_filter_keeps_deduplication_after_match(tmp_path: Path) -> None:
+async def test_search_names_local_filter_keeps_up_to_five_plans_after_match(
+    tmp_path: Path,
+) -> None:
     names_file = tmp_path / "names.txt"
     names_file.write_text("札幌\n", encoding="utf-8")
 
@@ -255,8 +259,9 @@ async def test_search_names_local_filter_keeps_deduplication_after_match(tmp_pat
         area_search_runner=_search_area_stub,
     )
 
-    assert len(actual) == 1
+    assert len(actual) == 2
     assert actual[0]["hotel_url_normalized"] == "/yad111111"
+    assert actual[1]["hotel_url_normalized"] == "/yad111111"
 
 
 @pytest.mark.asyncio

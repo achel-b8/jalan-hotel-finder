@@ -89,13 +89,54 @@ python -m pip install --user --break-system-packages -e .
 
 ## CLI Usage
 
+基本構文:
+
+```bash
+jalan-search [--help] <command> [options]
+```
+
+利用できるサブコマンド:
+- `area`: 都道府県配下のSMLエリアを巡回して検索（US-01）
+- `list`: `data/candidate_hotels.csv` の候補宿名で one-shot キーワード検索（US-02）
+
+### `area` オプション
+
+| オプション | 必須 | 既定値 | 説明 |
+|---|---|---|---|
+| `--checkin YYYY-MM-DD` | 必須 | - | 宿泊日 |
+| `--pref <都道府県名>` | 任意 | なし | 複数指定可。`--pref 北海道 --pref 青森県` または `--pref 北海道,青森県` |
+| `--adults <int>` | 任意 | `1` | 大人人数（1以上） |
+| `--nights <int>` | 任意 | `1` | 泊数（1以上） |
+| `--meal-type <none\|breakfast\|dinner\|two_meals>` | 任意 | 指定なし | 食事条件 |
+| `--care-kakenagashi / --no-care-kakenagashi` | 任意 | `--care-kakenagashi` | 温泉掛け流し条件 |
+| `--care-bath-rent / --no-care-bath-rent` | 任意 | `--no-care-bath-rent` | 貸切風呂・貸切露天条件 |
+| `--care-private-openair / --no-care-private-openair` | 任意 | `--no-care-private-openair` | 露天風呂付き客室条件 |
+| `--parallel <int>` | 任意 | `2` | 並列数（`1..10`） |
+
+### `list` オプション
+
+| オプション | 必須 | 既定値 | 説明 |
+|---|---|---|---|
+| `--checkin YYYY-MM-DD` | 必須 | - | 入力体系統一のため必須（keyword検索URLには反映しない） |
+| `--pref <都道府県名>` | 任意 | `area.xml` 上の全都道府県 | 複数指定可。keyword検索URLには反映しない |
+| `--adults <int>` | 任意 | `1` | 入力受理のみ（keyword検索URLには反映しない） |
+| `--nights <int>` | 任意 | `1` | 入力受理のみ（keyword検索URLには反映しない） |
+| `--meal-type <none\|breakfast\|dinner\|two_meals>` | 任意 | 指定なし | 入力受理のみ（keyword検索URLには反映しない） |
+| `--parallel <int>` | 任意 | `2` | 並列数（`1..10`） |
+
+補足:
+- `list` は候補ファイルを `data/candidate_hotels.csv` 固定で使用します（`--names-file` は非対応）。
+- `area` で `--pref` 未指定の場合、検索対象エリアが空になり結果は0件になります。
+
+### 実行例
+
 ヘルプ:
 
 ```bash
 jalan-search --help
 ```
 
-都道府県で検索（US-01）:
+都道府県で検索:
 
 ```bash
 jalan-search area \
@@ -103,22 +144,60 @@ jalan-search area \
   --pref 北海道
 ```
 
-複数都道府県を同時指定:
+複数都道府県 + 条件指定:
 
 ```bash
 jalan-search area \
   --checkin 2026-03-10 \
-  --pref 北海道,青森県
+  --pref 北海道,青森県 \
+  --meal-type two_meals \
+  --no-care-kakenagashi \
+  --care-bath-rent \
+  --parallel 4
 ```
 
-候補CSVで絞り込み（US-02）:
+候補CSVで絞り込み:
 
 ```bash
 jalan-search list \
-  --checkin 2026-03-10
+  --checkin 2026-03-10 \
+  --pref 北海道
 ```
 
-US-02は `data/candidate_hotels.csv` を固定で使用し、候補宿名ごとにキーワード検索URLを1回だけ取得して照合します（ページ送りなし）。
+## Output
+
+標準出力（`stdout`）は `text-list` 固定です。ログ/エラーは標準エラー（`stderr`）に出ます。
+
+検索結果あり（`stdout`）:
+
+```text
+検索結果: 1件
+
+[1] 宿名: 札幌温泉ホテル
+URL: https://www.jalan.net/yad123456/
+  - プラン1: 夕朝食付き / 12,000円
+```
+
+検索結果なし（`stdout`）:
+
+```text
+該当する宿はありませんでした。
+```
+
+取得失敗時の例（`stderr`）:
+
+```text
+area fetch failed: area=SML_010202 url=https://example.com reason=timeout
+```
+
+終了コード:
+
+| 終了コード | 意味 |
+|---|---|
+| `0` | 正常終了 |
+| `1` | 予期しない例外 |
+| `2` | 入力不備 / 未対応コマンド（例: `coupon`） |
+| `3` | 取得失敗（v1は stop ポリシー固定） |
 
 ## Test Execution
 

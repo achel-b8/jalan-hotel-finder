@@ -48,3 +48,11 @@ def test_extracts_keyword_result_cards_from_open_yado_syosai_links() -> None:
     assert actual[0]["hotel_url"] == "https://www.jalan.net/yad377160/"
     assert actual[0]["plan_name"].startswith("選べる夕食！鉄板フレンチ")
     assert actual[0]["price"] == 42900
+
+
+def test_ignores_faq_noise_links_from_search_page() -> None:
+    html = _read_fixture("tests/fixtures/html/hotel_cards_faq_noise_only.html")
+
+    actual = extract_hotel_cards_from_html(html)
+
+    assert actual == []

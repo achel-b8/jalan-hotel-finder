@@ -116,6 +116,9 @@ def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
         seen_paths.add(normalized_path)
 
     for anchor in tree.css("a[href], a[data-href]"):
+        if _is_noise_link(anchor):
+            continue
+
         hotel_url = _normalize_hotel_url(_extract_link_target(anchor))
         if not hotel_url:
             continue
@@ -161,6 +164,25 @@ def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
         seen_paths.add(normalized_path)
 
     return cards
+
+
+def _is_noise_link(anchor: Node) -> bool:
+    onclick = (anchor.attributes.get("onclick") or "").lower()
+    if "showyadsyoforfaq" in onclick or "showyadlistforfaq" in onclick:
+        return True
+
+    current: Node | None = anchor
+    for _ in range(8):
+        if current is None:
+            break
+
+        classes = (current.attributes.get("class") or "").lower()
+        if "faq" in classes:
+            return True
+
+        current = current.parent
+
+    return False
 
 
 def _extract_from_modern_dom(tree: HTMLParser) -> list[dict[str, Any]]:

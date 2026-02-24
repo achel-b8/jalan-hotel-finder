@@ -107,6 +107,7 @@ jalan-search [--help] <command> [options]
 | `--pref <都道府県名>` | 任意 | なし | 複数指定可。`--pref 北海道 --pref 青森県` または `--pref 北海道,青森県` |
 | `--adults <int>` | 任意 | `1` | 大人人数（1以上） |
 | `--nights <int>` | 任意 | `1` | 泊数（1以上） |
+| `--maxPrice <int>` | 任意 | 無制限 | 1人1泊あたりの予算上限（円） |
 | `--meal-type <none\|breakfast\|dinner\|two_meals>` | 任意 | 指定なし | 食事条件 |
 | `--care-kakenagashi / --no-care-kakenagashi` | 任意 | `--care-kakenagashi` | 温泉掛け流し条件 |
 | `--care-bath-rent / --no-care-bath-rent` | 任意 | `--no-care-bath-rent` | 貸切風呂・貸切露天条件 |
@@ -121,6 +122,7 @@ jalan-search [--help] <command> [options]
 | `--pref <都道府県名>` | 任意 | `area.xml` 上の全都道府県 | 複数指定可。keyword検索URLには反映しない |
 | `--adults <int>` | 任意 | `1` | 入力受理のみ（keyword検索URLには反映しない） |
 | `--nights <int>` | 任意 | `1` | 入力受理のみ（keyword検索URLには反映しない） |
+| `--maxPrice <int>` | 任意 | 無制限 | 1人1泊あたりの予算上限（円）。指定時は `maxPrice` として反映 |
 | `--meal-type <none\|breakfast\|dinner\|two_meals>` | 任意 | 指定なし | 入力受理のみ（keyword検索URLには反映しない） |
 | `--parallel <int>` | 任意 | `2` | 並列数（`1..10`） |
 

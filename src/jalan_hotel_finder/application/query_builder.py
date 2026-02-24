@@ -45,12 +45,18 @@ def build_search_area_url(sml_code: str, user_input: SearchAreaInput) -> str:
         query_params["careBathRent"] = "1"
     if user_input.care_private_openair:
         query_params["carePribateBath"] = "1"
+    if user_input.max_price is not None:
+        query_params["maxPrice"] = str(user_input.max_price)
 
     path = f"/{pref_code}/LRG_{lrg_code}/SML_{sml_digits}/"
     return urlunsplit(("https", "www.jalan.net", path, urlencode(query_params), ""))
 
 
-def build_keyword_search_url(keyword: str, encoding: KeywordEncoding) -> str:
+def build_keyword_search_url(
+    keyword: str,
+    encoding: KeywordEncoding,
+    max_price: int | None = None,
+) -> str:
     """Build one-shot keyword search URL."""
     normalized_keyword = keyword.strip()
     if not normalized_keyword:
@@ -65,6 +71,8 @@ def build_keyword_search_url(keyword: str, encoding: KeywordEncoding) -> str:
         "&ccnt=button-fw"
         "&image1="
     )
+    if max_price is not None:
+        query += f"&maxPrice={max_price}"
     return urlunsplit(
         ("https", "www.jalan.net", "/uw/uwp2011/uww2011init.do", query, "")
     )

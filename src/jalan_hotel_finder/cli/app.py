@@ -58,6 +58,7 @@ def search_area_command(
     pref: list[str] | None = typer.Option(None, "--pref"),
     adults: int = typer.Option(1, "--adults"),
     nights: int = typer.Option(1, "--nights"),
+    max_price: int | None = typer.Option(None, "--maxPrice"),
     meal_type: MealType | None = typer.Option(None, "--meal-type"),
     care_kakenagashi: bool = typer.Option(True, "--care-kakenagashi/--no-care-kakenagashi"),
     care_bath_rent: bool = typer.Option(False, "--care-bath-rent/--no-care-bath-rent"),
@@ -76,6 +77,7 @@ def search_area_command(
             pref=normalized_pref,
             adults=adults,
             nights=nights,
+            max_price=max_price,
             meal_type=meal_type,
             care_kakenagashi=care_kakenagashi,
             care_bath_rent=care_bath_rent,
@@ -109,6 +111,7 @@ def search_list_command(
     pref: list[str] | None = typer.Option(None, "--pref"),
     adults: int = typer.Option(1, "--adults"),
     nights: int = typer.Option(1, "--nights"),
+    max_price: int | None = typer.Option(None, "--maxPrice"),
     meal_type: MealType | None = typer.Option(None, "--meal-type"),
     parallel: int = typer.Option(2, "--parallel"),
 ) -> None:
@@ -123,6 +126,7 @@ def search_list_command(
             pref=effective_pref,
             adults=adults,
             nights=nights,
+            max_price=max_price,
             meal_type=meal_type,
             parallel=parallel,
         )

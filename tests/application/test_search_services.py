@@ -391,6 +391,32 @@ async def test_search_names_keyword_one_shot_fetches_each_keyword_once(tmp_path:
 
 
 @pytest.mark.asyncio
+async def test_search_names_keyword_one_shot_passes_max_price_to_keyword_url(
+    tmp_path: Path,
+) -> None:
+    names_file = tmp_path / "candidate_hotels.csv"
+    names_file.write_text("宿名,URL,優先オプション\n", encoding="utf-8")
+    user_input = SearchNamesInput(
+        names_file=names_file,
+        checkin="2026-03-10",
+        pref=["北海道"],
+        max_price=5000,
+    )
+    expected_url = build_keyword_search_url("札幌", user_input.keyword_encoding, max_price=5000)
+    crawler = _TrackingCrawler({expected_url: "kw1"})
+
+    actual = await search_names_keyword_one_shot(
+        user_input=user_input,
+        crawler=crawler,
+        names_loader=lambda _: ["札幌"],
+        hotel_card_extractor=lambda _: [],
+    )
+
+    assert actual == []
+    assert crawler.called_urls == [expected_url]
+
+
+@pytest.mark.asyncio
 async def test_search_names_keyword_one_shot_returns_empty_when_only_url_candidates(
     tmp_path: Path,
 ) -> None:

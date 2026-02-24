@@ -74,6 +74,24 @@ def test_build_search_area_url_sets_fixed_query_params() -> None:
     assert params["careBath"] == ["0"]
 
 
+def test_build_search_area_url_includes_max_price_when_max_price_is_specified() -> None:
+    user_input = SearchAreaInput(checkin="2026-03-10", max_price=15000)
+
+    url = build_search_area_url("SML_010202", user_input)
+    params = _parse_params(url)
+
+    assert params["maxPrice"] == ["15000"]
+
+
+def test_build_search_area_url_omits_max_price_when_max_price_is_unspecified() -> None:
+    user_input = SearchAreaInput(checkin="2026-03-10")
+
+    url = build_search_area_url("SML_010202", user_input)
+    params = _parse_params(url)
+
+    assert "maxPrice" not in params
+
+
 def test_build_search_area_url_omits_meal_type_when_unspecified() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10")
 
@@ -133,3 +151,17 @@ def test_build_keyword_search_url_treats_auto_as_cp932() -> None:
     auto_url = build_keyword_search_url("川島旅館", KeywordEncoding.AUTO)
 
     assert cp932_url == auto_url
+
+
+def test_build_keyword_search_url_includes_max_price_when_max_price_is_specified() -> None:
+    url = build_keyword_search_url("ピリカレラ", KeywordEncoding.CP932, max_price=5000)
+    params = _parse_params(url)
+
+    assert params["maxPrice"] == ["5000"]
+
+
+def test_build_keyword_search_url_omits_max_price_when_max_price_is_unspecified() -> None:
+    url = build_keyword_search_url("ピリカレラ", KeywordEncoding.CP932)
+    params = _parse_params(url)
+
+    assert "maxPrice" not in params

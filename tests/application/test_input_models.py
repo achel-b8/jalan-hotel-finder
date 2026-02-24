@@ -24,6 +24,7 @@ def test_accepts_valid_search_area_input() -> None:
         pref=["北海道"],
         adults=2,
         nights=2,
+        max_price=20000,
         care_kakenagashi=True,
         care_bath_rent=False,
         care_private_openair=False,
@@ -33,6 +34,7 @@ def test_accepts_valid_search_area_input() -> None:
     assert actual.checkin.isoformat() == "2026-03-10"
     assert actual.parallel == 2
     assert actual.meal_type is None
+    assert actual.max_price == 20000
 
 
 def test_rejects_parallel_over_limit_for_search_area() -> None:
@@ -67,6 +69,26 @@ def test_search_names_input_defaults_meal_type_to_unspecified() -> None:
     )
 
     assert actual.meal_type is None
+    assert actual.max_price is None
+
+
+def test_rejects_negative_max_price_for_search_area() -> None:
+    with pytest.raises(ValidationError):
+        SearchAreaInput(
+            checkin="2026-03-10",
+            pref=["北海道"],
+            max_price=-1,
+        )
+
+
+def test_rejects_negative_max_price_for_search_names() -> None:
+    with pytest.raises(ValidationError):
+        SearchNamesInput(
+            names_file=Path("fixtures/names.txt"),
+            checkin="2026-03-10",
+            pref=["北海道"],
+            max_price=-1,
+        )
 
 
 def test_rejects_search_names_input_without_pref() -> None:

@@ -260,12 +260,31 @@
   - `tests/cli/test_cli_commands.py::test_cli_search_names_accepts_comma_separated_prefectures`
 - 完了条件: `CLI仕様書 6.2/6.3` の `--pref` 入力が `--pref 北海道,青森県` 形式で受理される。
 
+### [x] T18: `--maxPrice`（予算上限）対応
+- 目的: `area` / `list` 両コマンドで予算上限指定を受理し、検索URLへ反映する。
+- 成果物:
+  - `SearchAreaInput` / `SearchNamesInput` に `max_price` を追加
+  - `area` / `list` CLIに `--maxPrice` オプションを追加
+  - `maxPrice` のURL付与（指定時のみ）
+- 依存タスク: T02, T03, T11, T13
+- 前提条件: 未指定時は無制限（従来挙動）を維持すること
+- テスト:
+  - `tests/application/test_input_models.py::test_rejects_negative_max_price_for_search_area`
+  - `tests/application/test_input_models.py::test_rejects_negative_max_price_for_search_names`
+  - `tests/application/test_query_builder.py::test_build_search_area_url_includes_max_price_when_max_price_is_specified`
+  - `tests/application/test_query_builder.py::test_build_keyword_search_url_includes_max_price_when_max_price_is_specified`
+  - `tests/application/test_search_services.py::test_search_names_keyword_one_shot_passes_max_price_to_keyword_url`
+  - `tests/cli/test_cli_commands.py::test_cli_search_area_accepts_max_price_option`
+  - `tests/cli/test_cli_commands.py::test_cli_search_names_accepts_max_price_option`
+- 完了条件: `--maxPrice` 指定時のみ `maxPrice` が付与され、未指定時は既存挙動を維持する。
+
 ---
 
 ## 依存関係サマリ（簡易）
 - 先行推奨: `T00 → T01 → (T02, T04, T05, T06, T08) → T03 → T07 → T09 → T10 → T11 → T12 → T13 → T14 → T15`
 - 障害是正パス: `T04 + T06 + T11 + T14 → T16`
 - 入力互換拡張パス: `T02 + T13 → T17`
+- 予算上限拡張パス: `T02 + T03 + T11 + T13 → T18`
 - 最小縦スライス（最初の実装候補）: `T00 → T01 → T02 → T03 → T04 → T06 → T07 → T08 → T09 → T10`
 
 ## 着手順の提案（最初の3タスク）

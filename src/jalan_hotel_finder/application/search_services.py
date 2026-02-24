@@ -134,6 +134,7 @@ async def search_names_local_filter(
         pref=user_input.pref,
         adults=user_input.adults,
         nights=user_input.nights,
+        max_price=user_input.max_price,
         meal_type=user_input.meal_type,
         parallel=user_input.parallel,
     )
@@ -224,7 +225,11 @@ async def _fetch_one_keyword(
     crawler: CrawlerPort,
     hotel_card_extractor: Callable[[str], list[dict[str, Any]]],
 ) -> list[dict[str, Any]]:
-    url = build_keyword_search_url(keyword, user_input.keyword_encoding)
+    url = build_keyword_search_url(
+        keyword,
+        user_input.keyword_encoding,
+        user_input.max_price,
+    )
     try:
         fetched_page = await crawler.fetch_url(url)
     except Exception as error:

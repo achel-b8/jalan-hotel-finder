@@ -87,6 +87,7 @@ jalan-search list [options]
 | `--pref` | string（複数可、`,` 区切り可） | 任意 | - | 都道府県名 |
 | `--adults` | int | 任意 | 1 | 大人人数 |
 | `--nights` | int | 任意 | 1 | 泊数 |
+| `--maxPrice` | int | 任意 | 無制限 | 1人1泊あたり予算上限（円）。指定時のみ `maxPrice` を付与 |
 | `--meal-type` | enum | 任意 | 指定なし（`mealType` 未付与） | `none`,`breakfast`,`dinner`,`two_meals` |
 | `--care-kakenagashi` | flag | 任意 | true | 温泉掛け流し |
 | `--care-bath-rent` | flag | 任意 | false | 貸切風呂・貸切露天 |
@@ -100,6 +101,7 @@ jalan-search list [options]
 | `--pref` | string（複数可、`,` 区切り可） | 任意 | 全都道府県 | 互換入力として受理（keyword検索URLには反映しない） |
 | `--adults` | int | 任意 | 1 | 大人人数 |
 | `--nights` | int | 任意 | 1 | 泊数 |
+| `--maxPrice` | int | 任意 | 無制限 | 1人1泊あたり予算上限（円）。指定時のみ `maxPrice` を付与 |
 | `--meal-type` | enum | 任意 | 指定なし（`mealType` 未付与） | 食事条件 |
 | `--parallel` | int | 任意 | 2 | 並列数（1〜10） |
 
@@ -136,6 +138,7 @@ jalan-search list [options]
 | `--checkin` | `stayYear`, `stayMonth`, `stayDay` |
 | `--adults` | `adultNum` |
 | `--nights` | `stayCount` |
+| `--maxPrice` | `maxPrice`（指定時のみ） |
 | `--meal-type` 未指定 | `mealType` を付与しない |
 | `--meal-type none/breakfast/dinner/two_meals` | `mealType=0/1/2/3` |
 | `--care-kakenagashi` | `careKake=1` |

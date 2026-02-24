@@ -138,6 +138,33 @@ def test_cli_search_area_accepts_comma_separated_prefectures(monkeypatch) -> Non
     assert captured["pref"] == ["北海道", "青森県"]
 
 
+def test_cli_search_area_accepts_max_price_option(monkeypatch) -> None:
+    captured = {}
+
+    async def _stub_run_search_area_service(user_input):
+        captured["max_price"] = user_input.max_price
+        return []
+
+    monkeypatch.setattr(cli_module, "run_search_area_service", _stub_run_search_area_service)
+
+    result = runner.invoke(
+        app,
+        [
+            "area",
+            "--checkin",
+            "2026-03-10",
+            "--pref",
+            "北海道",
+            "--maxPrice",
+            "8000",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout.strip() == "該当する宿はありませんでした。"
+    assert captured["max_price"] == 8000
+
+
 def test_cli_search_names_accepts_comma_separated_prefectures(monkeypatch, tmp_path) -> None:
     captured = {}
     names_file = tmp_path / "names.txt"
@@ -164,6 +191,36 @@ def test_cli_search_names_accepts_comma_separated_prefectures(monkeypatch, tmp_p
     assert result.exit_code == 0
     assert result.stdout.strip() == "該当する宿はありませんでした。"
     assert captured["pref"] == ["北海道", "青森県"]
+
+
+def test_cli_search_names_accepts_max_price_option(monkeypatch, tmp_path) -> None:
+    captured = {}
+    names_file = tmp_path / "names.txt"
+    names_file.write_text("札幌\n", encoding="utf-8")
+
+    async def _stub_run_search_names_service(user_input):
+        captured["max_price"] = user_input.max_price
+        return []
+
+    monkeypatch.setattr(cli_module, "run_search_names_service", _stub_run_search_names_service)
+    monkeypatch.setattr(cli_module, "DEFAULT_NAMES_FILE", names_file)
+
+    result = runner.invoke(
+        app,
+        [
+            "list",
+            "--checkin",
+            "2026-03-10",
+            "--pref",
+            "北海道",
+            "--maxPrice",
+            "8000",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout.strip() == "該当する宿はありませんでした。"
+    assert captured["max_price"] == 8000
 
 
 def test_cli_list_rejects_names_file_option() -> None:

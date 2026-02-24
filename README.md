@@ -103,6 +103,14 @@ jalan-search area \
   --pref 北海道
 ```
 
+複数都道府県を同時指定:
+
+```bash
+jalan-search area \
+  --checkin 2026-03-10 \
+  --pref 北海道,青森県
+```
+
 候補CSVで絞り込み（US-02）:
 
 ```bash

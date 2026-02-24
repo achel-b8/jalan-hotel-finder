@@ -38,6 +38,20 @@ app = typer.Typer(help="jalan hotel finder CLI")
 DEFAULT_NAMES_FILE = Path(__file__).resolve().parents[3] / "data" / "candidate_hotels.csv"
 
 
+def _normalize_prefecture_options(pref: list[str] | None) -> list[str]:
+    """Normalize prefecture options from repeated and comma-separated input."""
+    if not pref:
+        return []
+
+    normalized: list[str] = []
+    for raw_pref in pref:
+        for item in raw_pref.split(","):
+            value = item.strip()
+            if value:
+                normalized.append(value)
+    return normalized
+
+
 @app.command("area")
 def search_area_command(
     checkin: str = typer.Option(..., "--checkin"),
@@ -54,10 +68,12 @@ def search_area_command(
     parallel: int = typer.Option(2, "--parallel"),
 ) -> None:
     """Run area search and print a human-readable list to stdout."""
+    normalized_pref = _normalize_prefecture_options(pref)
+
     try:
         user_input = SearchAreaInput(
             checkin=checkin,
-            pref=pref or [],
+            pref=normalized_pref,
             adults=adults,
             nights=nights,
             meal_type=meal_type,
@@ -97,7 +113,8 @@ def search_list_command(
     parallel: int = typer.Option(2, "--parallel"),
 ) -> None:
     """Run candidate-list search and print a human-readable list to stdout."""
-    effective_pref = pref or list_prefecture_names()
+    normalized_pref = _normalize_prefecture_options(pref)
+    effective_pref = normalized_pref or list_prefecture_names()
 
     try:
         user_input = SearchNamesInput(

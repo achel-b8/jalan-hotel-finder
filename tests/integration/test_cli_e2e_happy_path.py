@@ -22,6 +22,7 @@ pytestmark = [
 
 cli_module = importlib.import_module("jalan_hotel_finder.cli.app")
 runner = CliRunner()
+_EXPECTED_LIVE_NORMALIZED_URLS = {"/yad386526", "/yad377160"}
 
 
 def _future_checkin(days_from_today: int = 30) -> str:
@@ -83,10 +84,10 @@ def test_e2e_live_search_area_uses_real_playwright_and_returns_json(monkeypatch)
 
     payload = json.loads(result.stdout)
     assert isinstance(payload, list)
-    if payload:
-        assert payload[0]["search_type"] == "area"
-        assert "area" in payload[0]
-        assert "hotel_url_normalized" in payload[0]
+    assert payload, "live area search returned empty payload"
+    assert payload[0]["search_type"] == "area"
+    assert "area" in payload[0]
+    assert "hotel_url_normalized" in payload[0]
 
 
 def test_e2e_live_search_names_uses_real_playwright_and_returns_json(
@@ -94,7 +95,12 @@ def test_e2e_live_search_names_uses_real_playwright_and_returns_json(
     tmp_path: Path,
 ) -> None:
     default_names_file = tmp_path / "candidate_hotels.csv"
-    default_names_file.write_text("宿名,URL,優先オプション\nホテル,,\n", encoding="utf-8")
+    default_names_file.write_text(
+        "宿名,URL,優先オプション\n"
+        "川島旅館,https://www.jalan.net/yad386526/?yadNo=386526,\n"
+        "ピリカ,https://www.jalan.net/yad377160/?yadNo=377160,\n",
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(cli_module, "DEFAULT_NAMES_FILE", default_names_file)
     fetch_count = _patch_live_playwright_route(monkeypatch)
@@ -117,6 +123,10 @@ def test_e2e_live_search_names_uses_real_playwright_and_returns_json(
 
     payload = json.loads(result.stdout)
     assert isinstance(payload, list)
+    assert payload, "live names search returned empty payload"
+    assert any(
+        record["hotel_url_normalized"] in _EXPECTED_LIVE_NORMALIZED_URLS for record in payload
+    )
     for record in payload:
         assert record["search_type"] == "name"
         assert "matched_name" in record
@@ -127,7 +137,12 @@ def test_e2e_live_search_names_with_default_pref_uses_real_playwright(
     tmp_path: Path,
 ) -> None:
     default_names_file = tmp_path / "candidate_hotels.csv"
-    default_names_file.write_text("宿名,URL,優先オプション\nホテル,,\n", encoding="utf-8")
+    default_names_file.write_text(
+        "宿名,URL,優先オプション\n"
+        "川島旅館,https://www.jalan.net/yad386526/?yadNo=386526,\n"
+        "ピリカ,https://www.jalan.net/yad377160/?yadNo=377160,\n",
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(cli_module, "DEFAULT_NAMES_FILE", default_names_file)
     monkeypatch.setattr(cli_module, "list_prefecture_names", lambda: ["北海道"])
@@ -149,3 +164,7 @@ def test_e2e_live_search_names_with_default_pref_uses_real_playwright(
 
     payload = json.loads(result.stdout)
     assert isinstance(payload, list)
+    assert payload, "live names search with default pref returned empty payload"
+    assert any(
+        record["hotel_url_normalized"] in _EXPECTED_LIVE_NORMALIZED_URLS for record in payload
+    )

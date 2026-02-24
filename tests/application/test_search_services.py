@@ -406,3 +406,67 @@ async def test_search_names_keyword_one_shot_returns_empty_when_only_url_candida
 
     assert actual == []
     assert crawler.called_urls == []
+
+
+@pytest.mark.asyncio
+async def test_search_names_keyword_one_shot_uses_loaded_csv_candidates_for_url_match(
+    tmp_path: Path,
+) -> None:
+    names_file = tmp_path / "candidate_hotels.csv"
+    names_file.write_text(
+        "宿名,URL,優先オプション\n"
+        "川島旅館,https://www.jalan.net/yad386526/?yadNo=386526,\n"
+        "ピリカ,https://www.jalan.net/yad377160/?yadNo=377160,\n",
+        encoding="utf-8",
+    )
+    user_input = SearchNamesInput(
+        names_file=names_file,
+        checkin="2026-03-10",
+        pref=["北海道"],
+    )
+    keyword_url_1 = build_keyword_search_url("川島旅館", user_input.keyword_encoding)
+    keyword_url_2 = build_keyword_search_url("ピリカ", user_input.keyword_encoding)
+    crawler = _TrackingCrawler(
+        {
+            keyword_url_1: "kw1",
+            keyword_url_2: "kw2",
+        }
+    )
+
+    def _extractor(html: str) -> list[dict[str, Any]]:
+        if html == "kw1":
+            return [
+                {
+                    "hotel_name": "宿A",
+                    "hotel_url": "https://www.jalan.net/yad386526/?plan=1",
+                    "plan_name": "プランA",
+                    "price": 10000,
+                }
+            ]
+        if html == "kw2":
+            return [
+                {
+                    "hotel_name": "宿B",
+                    "hotel_url": "https://www.jalan.net/yad377160/?plan=1",
+                    "plan_name": "プランB",
+                    "price": 11000,
+                }
+            ]
+        return []
+
+    actual = await search_names_keyword_one_shot(
+        user_input=user_input,
+        crawler=crawler,
+        hotel_card_extractor=_extractor,
+    )
+
+    assert sorted(crawler.called_urls) == sorted([keyword_url_1, keyword_url_2])
+    assert len(actual) == 2
+    assert any(
+        record["matched_name"].startswith("https://www.jalan.net/yad386526/")
+        for record in actual
+    )
+    assert any(
+        record["matched_name"].startswith("https://www.jalan.net/yad377160/")
+        for record in actual
+    )

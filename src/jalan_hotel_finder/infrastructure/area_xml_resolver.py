@@ -6,6 +6,10 @@ from lxml import etree
 
 
 DEFAULT_AREA_XML_PATH = Path(__file__).resolve().parent / "data" / "area.xml"
+EXCLUDED_SML_CODES_V1: set[str] = {
+    # 2026-02-24 observation: this area consistently returns Jalan error page.
+    "SML_013508",
+}
 
 
 class PrefectureNotFoundError(ValueError):
@@ -36,6 +40,7 @@ def list_prefecture_names(area_xml_path: Path | None = None) -> list[str]:
 def resolve_sml_codes_for_prefecture(
     prefecture_name: str,
     area_xml_path: Path | None = None,
+    excluded_sml_codes: set[str] | None = None,
 ) -> list[str]:
     """Return unique, non-empty SML codes for one prefecture name."""
     normalized_prefecture = prefecture_name.strip()
@@ -58,6 +63,7 @@ def resolve_sml_codes_for_prefecture(
 
     sml_codes: list[str] = []
     seen_codes: set[str] = set()
+    excluded = excluded_sml_codes or EXCLUDED_SML_CODES_V1
 
     for small_area in prefecture_element.findall(".//SmallArea"):
         code = (small_area.get("cd") or "").strip()
@@ -65,6 +71,8 @@ def resolve_sml_codes_for_prefecture(
             continue
 
         sml_code = f"SML_{code}"
+        if sml_code in excluded:
+            continue
         if sml_code in seen_codes:
             continue
 

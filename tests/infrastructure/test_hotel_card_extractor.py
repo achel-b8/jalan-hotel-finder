@@ -36,3 +36,15 @@ def test_fallback_does_not_crash_when_dom_is_partial() -> None:
     assert len(actual) == 1
     assert actual[0]["hotel_name"] == "宿だけ"
     assert actual[0]["plan_name"] == "宿だけ"
+
+
+def test_extracts_keyword_result_cards_from_open_yado_syosai_links() -> None:
+    html = _read_fixture("tests/fixtures/html/hotel_cards_keyword_open_yado.html")
+
+    actual = extract_hotel_cards_from_html(html)
+
+    assert len(actual) == 1
+    assert actual[0]["hotel_name"] == "ピリカレラホテル"
+    assert actual[0]["hotel_url"] == "https://www.jalan.net/yad377160/"
+    assert actual[0]["plan_name"].startswith("選べる夕食！鉄板フレンチ")
+    assert actual[0]["price"] == 42900

@@ -12,6 +12,7 @@ from selectolax.parser import HTMLParser, Node
 
 
 _HOTEL_URL_PATTERN = re.compile(r"/yad\d+/?")
+_OPEN_YADO_SYOSAI_PATTERN = re.compile(r"openYadoSyosai\(\s*['\"](?P<yad>\d{6})['\"]")
 _PRICE_PATTERN = re.compile(r"(\d[\d,]*)")
 
 
@@ -107,9 +108,15 @@ def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
     cards: list[dict[str, Any]] = []
     seen_paths: set[str] = set()
 
-    for anchor in tree.css("a[href*='/yad']"):
-        href = (anchor.attributes.get("href") or "").strip()
-        hotel_url = _normalize_hotel_url(href)
+    for card in _extract_from_modern_dom(tree):
+        normalized_path = _normalize_hotel_path(card["hotel_url"])
+        if normalized_path in seen_paths:
+            continue
+        cards.append(card)
+        seen_paths.add(normalized_path)
+
+    for anchor in tree.css("a[href], a[data-href]"):
+        hotel_url = _normalize_hotel_url(_extract_link_target(anchor))
         if not hotel_url:
             continue
 
@@ -124,6 +131,7 @@ def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
         plan_name = _find_related_text(
             anchor,
             [
+                ".p-searchResultItem__planName",
                 ".plan-name",
                 ".planName",
                 "[data-testid='plan-name']",
@@ -133,6 +141,8 @@ def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
         price_text = _find_related_text(
             anchor,
             [
+                ".p-searchResultItem__perPersonPrice",
+                ".p-searchResultItem__lowestPriceValue",
                 ".price",
                 ".plan-price",
                 ".planPrice",
@@ -153,15 +163,81 @@ def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
     return cards
 
 
+def _extract_from_modern_dom(tree: HTMLParser) -> list[dict[str, Any]]:
+    cards: list[dict[str, Any]] = []
+
+    for result_item in tree.css("li.p-yadoCassette.p-searchResultItem"):
+        anchor = result_item.css_first("a.jlnpc-yadoCassette__link")
+        if anchor is None:
+            anchor = result_item.css_first("a[href], a[data-href]")
+        if anchor is None:
+            continue
+
+        hotel_url = _normalize_hotel_url(_extract_link_target(anchor))
+        if not hotel_url:
+            continue
+
+        hotel_name = _find_first_text(
+            result_item,
+            [".p-searchResultItem__facilityName", ".hotel-name", "h2", "h3"],
+        )
+        if not hotel_name:
+            continue
+
+        plan_name = _find_first_text(
+            result_item,
+            [
+                ".p-searchResultItem__planName",
+                ".plan-name",
+                ".planName",
+                "[data-testid='plan-name']",
+                ".hotel-plan-name",
+            ],
+        )
+        price_text = _find_first_text(
+            result_item,
+            [
+                ".p-searchResultItem__perPersonPrice",
+                ".p-searchResultItem__lowestPriceValue",
+                ".price",
+                ".plan-price",
+                ".planPrice",
+                "[data-testid='price']",
+            ],
+        )
+
+        cards.append(
+            {
+                "hotel_name": hotel_name,
+                "hotel_url": hotel_url,
+                "plan_name": plan_name,
+                "price": _parse_price(price_text),
+            }
+        )
+
+    return cards
+
+
 def _find_hotel_name(anchor: Node) -> str:
     name = _find_related_text(
         anchor,
-        [".hotel-name", "h2", "h3"],
+        [".p-searchResultItem__facilityName", ".hotel-name", "h2", "h3"],
         fallback_to_anchor=False,
     )
     if name:
         return name.strip()
     return anchor.text(strip=True)
+
+
+def _find_first_text(node: Node, selectors: list[str]) -> str:
+    for selector in selectors:
+        found = node.css_first(selector)
+        if found is None:
+            continue
+        text = found.text(strip=True)
+        if text:
+            return text
+    return ""
 
 
 def _find_related_text(
@@ -187,11 +263,20 @@ def _find_related_text(
     return ""
 
 
+def _extract_link_target(anchor: Node) -> str:
+    return (anchor.attributes.get("href") or anchor.attributes.get("data-href") or "").strip()
+
+
 def _normalize_hotel_url(raw_url: Any) -> str:
     if not isinstance(raw_url, str) or not raw_url.strip():
         return ""
 
-    absolute_url = urljoin("https://www.jalan.net", raw_url.strip())
+    normalized_raw = raw_url.strip()
+    js_match = _OPEN_YADO_SYOSAI_PATTERN.search(normalized_raw)
+    if js_match is not None:
+        return urljoin("https://www.jalan.net", f"/yad{js_match.group('yad')}/")
+
+    absolute_url = urljoin("https://www.jalan.net", normalized_raw)
     match = _HOTEL_URL_PATTERN.search(absolute_url)
     if match is None:
         return ""

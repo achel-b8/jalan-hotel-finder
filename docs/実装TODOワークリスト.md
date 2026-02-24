@@ -1,6 +1,6 @@
 # jalan-hotel-finder 実装TODOワークリスト（v1）
 
-更新日: 2026-02-21  
+更新日: 2026-02-24  
 参照仕様:
 - `docs/CLI仕様書.md`
 - `docs/技術アーキテクチャ設計書.md`
@@ -229,13 +229,30 @@
 - テスト:
   - `並列数制約` を満たしつつエリア単位で並列化される
   - 1エリア失敗時に他タスクを停止し終了コード3相当の例外となる
-  - 既存の `重複排除` / `終了コード` の回帰がない
+- 既存の `重複排除` / `終了コード` の回帰がない
 - 完了条件: `CLI仕様書 5.1(5)(6)` を維持したまま体感実行時間が改善する。
+
+### [x] T16: US-01/US-02障害是正とE2E回帰防止
+- 目的: 実環境で発生した `area` 停止問題と `list` 空配列問題を是正し、E2Eで再検知できる状態にする。
+- 成果物:
+  - `area.xml` 展開時の固定除外SML適用（初期値: `SML_013508`）
+  - `openYadoSyosai('NNNNNN',...)` 形式と現行DOMクラス対応の抽出改善
+  - mocked契約テストfixtureの現行DOM化
+  - Live E2Eの非空・期待レコード必須化
+- 依存タスク: T04, T06, T11, T14
+- 前提条件: 2026-02-24観測で `SML_013508` が恒常的にエラー画面を返すことを確認済み
+- テスト:
+  - `resolve_sml_codes_for_prefecture` が `SML_013508` を除外
+  - `openYadoSyosai` fixture から `hotel_name/url/plan/price` を抽出
+  - `search_names_keyword_one_shot` がCSV読込経路でURL一致 `matched_name` を再現
+  - Live E2Eで `area/list` の空配列通過を禁止
+- 完了条件: `US-01/US-02` 既知障害の再現コマンドが解消し、回帰をテストで検知できる。
 
 ---
 
 ## 依存関係サマリ（簡易）
 - 先行推奨: `T00 → T01 → (T02, T04, T05, T06, T08) → T03 → T07 → T09 → T10 → T11 → T12 → T13 → T14 → T15`
+- 障害是正パス: `T04 + T06 + T11 + T14 → T16`
 - 最小縦スライス（最初の実装候補）: `T00 → T01 → T02 → T03 → T04 → T06 → T07 → T08 → T09 → T10`
 
 ## 着手順の提案（最初の3タスク）
@@ -251,14 +268,14 @@
 
 | 要件ID | テストID（主要） |
 |---|---|
-| US-01-1 `pref -> SML展開` | `tests/infrastructure/test_area_xml_resolver.py::test_resolves_sml_codes_for_representative_prefecture` |
+| US-01-1 `pref -> SML展開` | `tests/infrastructure/test_area_xml_resolver.py::test_resolves_sml_codes_for_representative_prefecture` / `tests/infrastructure/test_area_xml_resolver.py::test_excludes_fixed_blocked_sml_codes_from_results` |
 | US-01-2 `ページネーション追跡` | `tests/application/test_pagination.py::test_build_next_page_url_increments_by_30` / `tests/integration/test_end_to_end_mocked.py::test_integration_us01_area_search_json_snapshot` |
-| US-01-3 `hotel_name/url/plan/price出力` | `tests/infrastructure/test_hotel_card_extractor.py::test_extracts_required_fields_from_normal_html` |
+| US-01-3 `hotel_name/url/plan/price出力` | `tests/infrastructure/test_hotel_card_extractor.py::test_extracts_required_fields_from_normal_html` / `tests/infrastructure/test_hotel_card_extractor.py::test_extracts_keyword_result_cards_from_open_yado_syosai_links` |
 | US-01-4 `URLパス単位の重複排除` | `tests/domain/test_hotel_deduplication.py::test_deduplication_merges_records_when_query_is_different` / `tests/application/test_search_services.py::test_search_area_deduplicates_across_multiple_sml` |
 | US-01-5 `parallel=1..10` | `tests/application/test_input_models.py::test_rejects_parallel_over_limit_for_search_area` / `tests/infrastructure/test_crawler.py::test_parallel_limit_is_respected_with_semaphore` |
 | US-01-6 `1エリア失敗で停止(終了コード3)` | `tests/application/test_search_services.py::test_search_area_raises_when_one_area_fails` / `tests/cli/test_cli_commands.py::test_cli_returns_exit_code_3_for_fetch_failure` |
 | US-02-1 `names-file既定値 + txt/csv入力` | `tests/domain/test_name_matching.py::test_load_hotel_names_reads_one_name_per_line` / `tests/domain/test_name_matching.py::test_load_hotel_names_reads_csv_name_url_and_options_columns` / `tests/cli/test_cli_commands.py::test_cli_search_names_uses_defaults_for_names_file_and_pref` |
-| US-02-2 `keyword one-shot + 宿名部分一致/URL一致` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_matches_when_candidate_is_hotel_url` |
+| US-02-2 `keyword one-shot + 宿名部分一致/URL一致` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` / `tests/application/test_search_services.py::test_search_names_keyword_one_shot_uses_loaded_csv_candidates_for_url_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_matches_when_candidate_is_hotel_url` |
 | US-02-3 `0件でも正常/空JSON` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_returns_empty_when_only_url_candidates` / `tests/output/test_json_formatter.py::test_serialize_empty_records` |
 | US-02-4 `照合後も重複排除維持` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` |
 | US-03-1 `coupon非公開(未対応)` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |

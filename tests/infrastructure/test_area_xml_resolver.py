@@ -17,6 +17,12 @@ def test_resolves_sml_codes_for_representative_prefecture() -> None:
     assert len(actual) > 10
 
 
+def test_excludes_fixed_blocked_sml_codes_from_results() -> None:
+    actual = resolve_sml_codes_for_prefecture("北海道")
+
+    assert "SML_013508" not in actual
+
+
 def test_raises_when_prefecture_is_unknown() -> None:
     with pytest.raises(PrefectureNotFoundError):
         resolve_sml_codes_for_prefecture("存在しない都道府県")

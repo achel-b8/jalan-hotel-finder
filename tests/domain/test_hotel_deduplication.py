@@ -67,7 +67,7 @@ def test_deduplication_normalizes_trailing_slash_and_keeps_records_within_limit(
     assert actual[1]["hotel_url_normalized"] == "/yad222222"
 
 
-def test_deduplication_limits_to_five_records_per_hotel_by_default() -> None:
+def test_deduplication_limits_to_three_records_per_hotel_by_default() -> None:
     records = [
         {
             "hotel_name": "A",
@@ -75,16 +75,14 @@ def test_deduplication_limits_to_five_records_per_hotel_by_default() -> None:
             "plan_name": f"plan {index}",
             "price": 10000 + index,
         }
-        for index in range(1, 7)
+        for index in range(1, 5)
     ]
 
     actual = deduplicate_hotels_by_normalized_url(records)
 
-    assert len(actual) == 5
+    assert len(actual) == 3
     assert [record["plan_name"] for record in actual] == [
         "plan 1",
         "plan 2",
         "plan 3",
-        "plan 4",
-        "plan 5",
     ]

@@ -25,30 +25,26 @@ def extract_hotel_cards_from_html(html: str) -> list[dict[str, Any]]:
     if not structured_cards:
         return dom_cards
 
-    dom_by_normalized_url = {
-        _normalize_hotel_path(card["hotel_url"]): card for card in dom_cards
-    }
-
-    merged: list[dict[str, Any]] = []
-    seen_paths: set[str] = set()
-
+    structured_by_path: dict[str, dict[str, Any]] = {}
     for card in structured_cards:
         path = _normalize_hotel_path(card["hotel_url"])
-        dom_fallback = dom_by_normalized_url.get(path)
+        structured_by_path.setdefault(path, card)
 
-        merged_card = dict(card)
-        if dom_fallback is not None:
-            if not merged_card["plan_name"]:
-                merged_card["plan_name"] = dom_fallback["plan_name"]
-            if merged_card["price"] is None:
-                merged_card["price"] = dom_fallback["price"]
-
-        merged.append(merged_card)
-        seen_paths.add(path)
+    merged: list[dict[str, Any]] = []
+    seen_dom_paths: set[str] = set()
 
     for card in dom_cards:
         path = _normalize_hotel_path(card["hotel_url"])
-        if path in seen_paths:
+        structured_fallback = structured_by_path.get(path)
+        merged_card = dict(card)
+        if structured_fallback is not None and merged_card["price"] is None:
+            merged_card["price"] = structured_fallback["price"]
+        merged.append(merged_card)
+        seen_dom_paths.add(path)
+
+    for card in structured_cards:
+        path = _normalize_hotel_path(card["hotel_url"])
+        if path in seen_dom_paths:
             continue
         merged.append(card)
 
@@ -106,15 +102,19 @@ def _iter_hotel_objects(data: Any) -> Iterable[dict[str, Any]]:
 
 def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
     cards: list[dict[str, Any]] = []
-    seen_paths: set[str] = set()
+    seen_card_keys: set[tuple[str, str, int | None]] = set()
+    seen_paths_from_modern: set[str] = set()
 
     for card in _extract_from_modern_dom(tree):
         normalized_path = _normalize_hotel_path(card["hotel_url"])
-        if normalized_path in seen_paths:
+        card_key = (normalized_path, card["plan_name"], card["price"])
+        if card_key in seen_card_keys:
             continue
         cards.append(card)
-        seen_paths.add(normalized_path)
+        seen_card_keys.add(card_key)
+        seen_paths_from_modern.add(normalized_path)
 
+    seen_paths_from_anchor: set[str] = set()
     for anchor in tree.css("a[href], a[data-href]"):
         if _is_noise_link(anchor):
             continue
@@ -124,7 +124,9 @@ def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
             continue
 
         normalized_path = _normalize_hotel_path(hotel_url)
-        if normalized_path in seen_paths:
+        if normalized_path in seen_paths_from_modern:
+            continue
+        if normalized_path in seen_paths_from_anchor:
             continue
 
         hotel_name = _find_hotel_name(anchor)
@@ -161,7 +163,7 @@ def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
                 "price": _parse_price(price_text),
             }
         )
-        seen_paths.add(normalized_path)
+        seen_paths_from_anchor.add(normalized_path)
 
     return cards
 
@@ -206,8 +208,30 @@ def _extract_from_modern_dom(tree: HTMLParser) -> list[dict[str, Any]]:
         if not hotel_name:
             continue
 
+        plan_rows = _extract_plan_rows(result_item)
+        if plan_rows:
+            for plan_name, plan_price in plan_rows:
+                cards.append(
+                    {
+                        "hotel_name": hotel_name,
+                        "hotel_url": hotel_url,
+                        "plan_name": plan_name,
+                        "price": plan_price,
+                    }
+                )
+            continue
+
+        cards.append(_build_fallback_card(hotel_name, hotel_url, result_item))
+
+    return cards
+
+
+def _extract_plan_rows(result_item: Node) -> list[tuple[str, int | None]]:
+    plan_rows: list[tuple[str, int | None]] = []
+    seen: set[tuple[str, int | None]] = set()
+    for row in result_item.css("table.p-planTable tr"):
         plan_name = _find_first_text(
-            result_item,
+            row,
             [
                 ".p-searchResultItem__planName",
                 ".plan-name",
@@ -216,9 +240,14 @@ def _extract_from_modern_dom(tree: HTMLParser) -> list[dict[str, Any]]:
                 ".hotel-plan-name",
             ],
         )
+        if not plan_name:
+            continue
+
         price_text = _find_first_text(
-            result_item,
+            row,
             [
+                ".p-searchResultItem__total",
+                ".p-searchResultItem__perPerson",
                 ".p-searchResultItem__perPersonPrice",
                 ".p-searchResultItem__lowestPriceValue",
                 ".price",
@@ -227,17 +256,46 @@ def _extract_from_modern_dom(tree: HTMLParser) -> list[dict[str, Any]]:
                 "[data-testid='price']",
             ],
         )
+        plan_price = _parse_price(price_text)
+        key = (plan_name, plan_price)
+        if key in seen:
+            continue
 
-        cards.append(
-            {
-                "hotel_name": hotel_name,
-                "hotel_url": hotel_url,
-                "plan_name": plan_name,
-                "price": _parse_price(price_text),
-            }
-        )
+        plan_rows.append(key)
+        seen.add(key)
 
-    return cards
+    return plan_rows
+
+
+def _build_fallback_card(hotel_name: str, hotel_url: str, result_item: Node) -> dict[str, Any]:
+    plan_name = _find_first_text(
+        result_item,
+        [
+            ".p-searchResultItem__planName",
+            ".plan-name",
+            ".planName",
+            "[data-testid='plan-name']",
+            ".hotel-plan-name",
+        ],
+    )
+    price_text = _find_first_text(
+        result_item,
+        [
+            ".p-searchResultItem__perPersonPrice",
+            ".p-searchResultItem__lowestPriceValue",
+            ".price",
+            ".plan-price",
+            ".planPrice",
+            "[data-testid='price']",
+        ],
+    )
+
+    return {
+        "hotel_name": hotel_name,
+        "hotel_url": hotel_url,
+        "plan_name": plan_name,
+        "price": _parse_price(price_text),
+    }
 
 
 def _find_hotel_name(anchor: Node) -> str:

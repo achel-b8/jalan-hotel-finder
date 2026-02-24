@@ -37,13 +37,13 @@
 - 目的: 仕様の重複排除ルール（URLパス単位）を先に固定する。
 - 成果物:
   - `hotel_url_normalized` 生成関数
-  - 先勝ちの重複排除関数
+  - 同一宿あたり最大3件を取得順で保持する重複排除関数
 - 依存タスク: T00
 - 前提条件: なし
 - テスト:
   - クエリ差分の同一URL統合
   - 末尾スラッシュ有無の扱い
-  - 重複時に最初のレコードを保持
+  - 同一宿で4件目以降を切り捨て、先頭3件を保持
 - 完了条件: `CLI仕様書 7.3` を満たす。
 
 ### [x] T02: CLI入力モデルとバリデーション
@@ -159,7 +159,7 @@
 - 依存タスク: T01, T03, T04, T06, T09
 - 前提条件: なし
 - テスト:
-  - 複数SML統合時の重複排除
+  - 複数SML統合時に同一宿を最大3件まで保持
   - 1エリア失敗で終了コード3相当の例外
   - 取得0件でも正常完了
 - 完了条件: `CLI仕様書 5.1` をユースケース単体で満たす。
@@ -175,7 +175,7 @@
   - 1候補名=1リクエスト（ページ送りなし）
   - URL候補は keyword リクエスト対象外
   - 0件時も正常終了
-  - 照合後も重複排除維持
+  - 照合後も同一宿あたり最大3件保持を維持
 - 完了条件: `CLI仕様書 5.2` を満たす。
 
 ### [x] T12: text-list出力整形（stdout固定）
@@ -229,7 +229,7 @@
 - テスト:
   - `並列数制約` を満たしつつエリア単位で並列化される
   - 1エリア失敗時に他タスクを停止し終了コード3相当の例外となる
-- 既存の `重複排除` / `終了コード` の回帰がない
+- 既存の `同一宿判定（最大3件保持）` / `終了コード` の回帰がない
 - 完了条件: `CLI仕様書 5.1(5)(6)` を維持したまま体感実行時間が改善する。
 
 ### [x] T16: US-01/US-02障害是正とE2E回帰防止
@@ -248,11 +248,24 @@
   - Live E2Eで `area/list` の空配列通過を禁止
 - 完了条件: `US-01/US-02` 既知障害の再現コマンドが解消し、回帰をテストで検知できる。
 
+### [x] T17: `--pref` のカンマ区切り複数指定対応
+- 目的: 都道府県入力を省力化し、1回の `--pref` 指定で複数県を受理できるようにする。
+- 成果物:
+  - `--pref` 値の正規化（`,` 分割、前後空白除去、空要素除外）
+  - `area` / `list` で共通の入力正規化を適用
+- 依存タスク: T02, T13
+- 前提条件: 既存仕様の `--pref` 複数回指定互換を維持すること
+- テスト:
+  - `tests/cli/test_cli_commands.py::test_cli_search_area_accepts_comma_separated_prefectures`
+  - `tests/cli/test_cli_commands.py::test_cli_search_names_accepts_comma_separated_prefectures`
+- 完了条件: `CLI仕様書 6.2/6.3` の `--pref` 入力が `--pref 北海道,青森県` 形式で受理される。
+
 ---
 
 ## 依存関係サマリ（簡易）
 - 先行推奨: `T00 → T01 → (T02, T04, T05, T06, T08) → T03 → T07 → T09 → T10 → T11 → T12 → T13 → T14 → T15`
 - 障害是正パス: `T04 + T06 + T11 + T14 → T16`
+- 入力互換拡張パス: `T02 + T13 → T17`
 - 最小縦スライス（最初の実装候補）: `T00 → T01 → T02 → T03 → T04 → T06 → T07 → T08 → T09 → T10`
 
 ## 着手順の提案（最初の3タスク）
@@ -268,15 +281,15 @@
 
 | 要件ID | テストID（主要） |
 |---|---|
-| US-01-1 `pref -> SML展開` | `tests/infrastructure/test_area_xml_resolver.py::test_resolves_sml_codes_for_representative_prefecture` / `tests/infrastructure/test_area_xml_resolver.py::test_excludes_fixed_blocked_sml_codes_from_results` |
+| US-01-1 `pref -> SML展開` | `tests/infrastructure/test_area_xml_resolver.py::test_resolves_sml_codes_for_representative_prefecture` / `tests/infrastructure/test_area_xml_resolver.py::test_excludes_fixed_blocked_sml_codes_from_results` / `tests/cli/test_cli_commands.py::test_cli_search_area_accepts_comma_separated_prefectures` |
 | US-01-2 `ページネーション追跡` | `tests/application/test_pagination.py::test_build_next_page_url_increments_by_30` / `tests/integration/test_end_to_end_mocked.py::test_integration_us01_area_search_list_snapshot` |
 | US-01-3 `hotel_name/url/plan/price出力` | `tests/infrastructure/test_hotel_card_extractor.py::test_extracts_required_fields_from_normal_html` / `tests/infrastructure/test_hotel_card_extractor.py::test_extracts_keyword_result_cards_from_open_yado_syosai_links` |
-| US-01-4 `URLパス単位の重複排除` | `tests/domain/test_hotel_deduplication.py::test_deduplication_merges_records_when_query_is_different` / `tests/application/test_search_services.py::test_search_area_deduplicates_across_multiple_sml` |
+| US-01-4 `URLパス単位の同一宿判定 + 1宿最大3件` | `tests/domain/test_hotel_deduplication.py::test_deduplication_keeps_records_when_query_is_different_within_limit` / `tests/domain/test_hotel_deduplication.py::test_deduplication_limits_to_three_records_per_hotel_by_default` / `tests/application/test_search_services.py::test_search_area_keeps_up_to_three_plans_per_hotel_across_multiple_sml` |
 | US-01-5 `parallel=1..10` | `tests/application/test_input_models.py::test_rejects_parallel_over_limit_for_search_area` / `tests/infrastructure/test_crawler.py::test_parallel_limit_is_respected_with_semaphore` |
 | US-01-6 `1エリア失敗で停止(終了コード3)` | `tests/application/test_search_services.py::test_search_area_raises_when_one_area_fails` / `tests/cli/test_cli_commands.py::test_cli_returns_exit_code_3_for_fetch_failure` |
-| US-02-1 `names-file既定値 + txt/csv入力` | `tests/domain/test_name_matching.py::test_load_hotel_names_reads_one_name_per_line` / `tests/domain/test_name_matching.py::test_load_hotel_names_reads_csv_name_url_and_options_columns` / `tests/cli/test_cli_commands.py::test_cli_search_names_uses_defaults_for_names_file_and_pref` |
+| US-02-1 `names-file既定値 + txt/csv入力` | `tests/domain/test_name_matching.py::test_load_hotel_names_reads_one_name_per_line` / `tests/domain/test_name_matching.py::test_load_hotel_names_reads_csv_name_url_and_options_columns` / `tests/cli/test_cli_commands.py::test_cli_search_names_uses_defaults_for_names_file_and_pref` / `tests/cli/test_cli_commands.py::test_cli_search_names_accepts_comma_separated_prefectures` |
 | US-02-2 `keyword one-shot + 宿名部分一致/URL一致` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` / `tests/application/test_search_services.py::test_search_names_keyword_one_shot_uses_loaded_csv_candidates_for_url_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_matches_when_candidate_is_hotel_url` |
 | US-02-3 `0件でも正常/該当なしメッセージ` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_returns_empty_when_only_url_candidates` / `tests/output/test_json_formatter.py::test_shows_message_when_no_records` |
-| US-02-4 `照合後も重複排除維持` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` |
+| US-02-4 `照合後も同一宿判定 + 1宿最大3件維持` | `tests/application/test_search_services.py::test_search_names_local_filter_keeps_up_to_three_plans_after_match` / `tests/output/test_json_formatter.py::test_limits_plans_to_three_per_hotel_in_recommendation_order` |
 | US-03-1 `coupon非公開(未対応)` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |
 | US-03-2 `未対応要求はstderr+終了コード2` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |

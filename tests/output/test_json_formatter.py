@@ -45,7 +45,7 @@ def test_formats_none_price_as_unavailable() -> None:
     assert "  - プラン1: 素泊まり / 価格未取得" in actual
 
 
-def test_limits_plans_to_five_per_hotel_in_recommendation_order() -> None:
+def test_limits_plans_to_three_per_hotel_in_recommendation_order() -> None:
     records = [
         {
             "hotel_name": "札幌温泉ホテル",
@@ -62,19 +62,14 @@ def test_limits_plans_to_five_per_hotel_in_recommendation_order() -> None:
     plan1 = "  - プラン1: プラン1 / 10,000円"
     plan2 = "  - プラン2: プラン2 / 11,000円"
     plan3 = "  - プラン3: プラン3 / 12,000円"
-    plan4 = "  - プラン4: プラン4 / 13,000円"
-    plan5 = "  - プラン5: プラン5 / 14,000円"
-
     assert plan1 in actual
     assert plan2 in actual
     assert plan3 in actual
-    assert plan4 in actual
-    assert plan5 in actual
+    assert "プラン4" not in actual
+    assert "プラン5" not in actual
     assert "プラン6" not in actual
     assert actual.index(plan1) < actual.index(plan2)
     assert actual.index(plan2) < actual.index(plan3)
-    assert actual.index(plan3) < actual.index(plan4)
-    assert actual.index(plan4) < actual.index(plan5)
 
 
 def test_shows_message_when_no_records() -> None:

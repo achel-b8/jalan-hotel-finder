@@ -6,7 +6,9 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 from urllib.parse import urlsplit
 
-DEFAULT_MAX_PLANS_PER_HOTEL = 5
+# 現行のじゃらん検索結果DOMでは1宿あたり最大3件までしか抽出できない。
+# 4件以上を表示したい場合は抽出ロジック側の拡張が必要。
+DEFAULT_MAX_PLANS_PER_HOTEL = 3
 
 
 def format_search_results(

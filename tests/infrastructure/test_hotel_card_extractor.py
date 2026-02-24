@@ -50,6 +50,21 @@ def test_extracts_keyword_result_cards_from_open_yado_syosai_links() -> None:
     assert actual[0]["price"] == 42900
 
 
+def test_extracts_multiple_plan_rows_from_modern_result_item() -> None:
+    html = _read_fixture("tests/fixtures/html/hotel_cards_modern_multiple_plans.html")
+
+    actual = extract_hotel_cards_from_html(html)
+
+    assert len(actual) == 3
+    assert [record["hotel_url"] for record in actual] == [
+        "https://www.jalan.net/yad777777/",
+        "https://www.jalan.net/yad777777/",
+        "https://www.jalan.net/yad777777/",
+    ]
+    assert [record["plan_name"] for record in actual] == ["プランA", "プランB", "プランC"]
+    assert [record["price"] for record in actual] == [10000, 12000, 14000]
+
+
 def test_ignores_faq_noise_links_from_search_page() -> None:
     html = _read_fixture("tests/fixtures/html/hotel_cards_faq_noise_only.html")
 

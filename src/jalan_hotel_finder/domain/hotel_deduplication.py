@@ -4,7 +4,9 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 from urllib.parse import urlsplit
 
-DEFAULT_MAX_RECORDS_PER_HOTEL = 5
+# 現行のじゃらん検索結果DOMでは1宿あたり最大3件までしか抽出できない。
+# 4件以上を扱うには、宿詳細/プラン一覧ページまで辿る抽出ロジック拡張が必要。
+DEFAULT_MAX_RECORDS_PER_HOTEL = 3
 
 
 def normalize_hotel_url(hotel_url: str) -> str:

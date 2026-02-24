@@ -74,7 +74,7 @@ def _extractor_from_marker(html: str) -> list[dict[str, Any]]:
 
 
 @pytest.mark.asyncio
-async def test_search_area_keeps_up_to_five_plans_per_hotel_across_multiple_sml() -> None:
+async def test_search_area_keeps_up_to_three_plans_per_hotel_across_multiple_sml() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10", pref=["北海道", "青森県"])
     html_by_url = {
         "https://www.jalan.net/010000/LRG_010200/SML_010202/?stayYear=2026&stayMonth=03&stayDay=10&adultNum=1&stayCount=1&roomCount=1&dateUndecided=0&careBath=0&careKake=1": "area1",
@@ -215,7 +215,7 @@ async def test_search_names_local_filter_returns_empty_when_no_match(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_search_names_local_filter_keeps_up_to_five_plans_after_match(
+async def test_search_names_local_filter_keeps_up_to_three_plans_after_match(
     tmp_path: Path,
 ) -> None:
     names_file = tmp_path / "names.txt"

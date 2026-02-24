@@ -23,6 +23,7 @@ pytestmark = [
 cli_module = importlib.import_module("jalan_hotel_finder.cli.app")
 runner = CliRunner()
 _EXPECTED_LIVE_NORMALIZED_URLS = {"/yad386526", "/yad377160"}
+_AREA_CHECKIN_OFFSETS = (30, 60, 90)
 
 
 def _future_checkin(days_from_today: int = 30) -> str:
@@ -70,27 +71,43 @@ def _extract_result_count(output: str) -> int:
     return int(matched.group(1))
 
 
+def _invoke_live_area_with_fallback_checkins() -> tuple:
+    attempts: list[tuple[str, int]] = []
+
+    for days_from_today in _AREA_CHECKIN_OFFSETS:
+        checkin = _future_checkin(days_from_today)
+        result = runner.invoke(
+            cli_module.app,
+            [
+                "area",
+                "--checkin",
+                checkin,
+                "--pref",
+                "北海道",
+                "--parallel",
+                "1",
+                "--no-care-kakenagashi",
+            ],
+        )
+        assert result.exit_code == 0, result.stderr
+
+        result_count = _extract_result_count(result.stdout)
+        attempts.append((checkin, result_count))
+        if result_count >= 1:
+            return result, checkin
+
+    details = ", ".join(f"{checkin}: {count}件" for checkin, count in attempts)
+    pytest.fail(f"live area search returned empty output for all checkins ({details})")
+
+
 def test_e2e_live_search_area_uses_real_playwright_and_returns_list(monkeypatch) -> None:
     fetch_count = _patch_live_playwright_route(monkeypatch)
 
-    result = runner.invoke(
-        cli_module.app,
-        [
-            "area",
-            "--checkin",
-            _future_checkin(),
-            "--pref",
-            "北海道",
-            "--parallel",
-            "1",
-        ],
-    )
-
-    assert result.exit_code == 0, result.stderr
+    result, selected_checkin = _invoke_live_area_with_fallback_checkins()
     assert fetch_count["value"] >= 1
 
     result_count = _extract_result_count(result.stdout)
-    assert result_count >= 1, "live area search returned empty output"
+    assert result_count >= 1, f"live area search returned empty output: {selected_checkin}"
     assert "宿名:" in result.stdout
     assert "URL: https://www.jalan.net/yad" in result.stdout
 

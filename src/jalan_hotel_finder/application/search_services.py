@@ -1,4 +1,4 @@
-"""Application services for `area` and `list` use cases."""
+"""Application services for `area`, `list`, and `coupon` use cases."""
 
 from __future__ import annotations
 
@@ -9,13 +9,18 @@ from pathlib import Path
 import re
 from typing import Any, Protocol
 
-from jalan_hotel_finder.application.input_models import SearchAreaInput, SearchNamesInput
+from jalan_hotel_finder.application.input_models import (
+    SearchAreaInput,
+    SearchCouponInput,
+    SearchNamesInput,
+)
 from jalan_hotel_finder.application.pagination import (
     extract_next_page_url_from_html,
     normalize_page_url,
     should_continue_pagination,
 )
 from jalan_hotel_finder.application.query_builder import (
+    build_coupon_search_url,
     build_keyword_search_url,
     build_search_area_url,
 )
@@ -50,6 +55,16 @@ class NameSearchFailedError(RuntimeError):
         self.keyword = keyword
         self.failed_url = failed_url
         message = f"name fetch failed: keyword={keyword} url={failed_url} reason={reason}"
+        super().__init__(message)
+
+
+class CouponSearchFailedError(RuntimeError):
+    """Raised when one coupon area fetch fails in `coupon` command."""
+
+    def __init__(self, lrg_code: str, failed_url: str, reason: str) -> None:
+        self.lrg_code = lrg_code
+        self.failed_url = failed_url
+        message = f"coupon fetch failed: area={lrg_code} url={failed_url} reason={reason}"
         super().__init__(message)
 
 
@@ -195,6 +210,65 @@ async def search_names_keyword_one_shot(
     return deduplicate_hotels_by_normalized_url(matched)
 
 
+async def search_coupon(
+    user_input: SearchCouponInput,
+    resolve_coupon_id: Callable[[str, str], str],
+    resolve_lrg_codes_for_prefecture: Callable[[str], list[str]],
+    crawler: CrawlerPort,
+    hotel_card_extractor: Callable[[str], list[dict[str, Any]]] = extract_hotel_cards_from_html,
+    next_page_extractor: Callable[[str, str], str | None] = extract_next_page_url_from_html,
+) -> list[dict[str, Any]]:
+    """Run coupon-target hotel search flow and return deduplicated records."""
+    coupon_id = resolve_coupon_id(
+        user_input.coupon_name,
+        str(user_input.coupon_source_url),
+    )
+    lrg_codes = _expand_lrg_area_codes(user_input, resolve_lrg_codes_for_prefecture)
+    if not lrg_codes:
+        return []
+
+    collected_records: list[dict[str, Any]] = []
+
+    for lrg_index, lrg_code in enumerate(lrg_codes):
+        start_url = build_coupon_search_url(
+            lrg_code=lrg_code,
+            user_input=user_input,
+            coupon_id=coupon_id,
+            idx=0,
+        )
+        current_url: str | None = start_url
+        visited_urls: set[str] = set()
+
+        while current_url is not None:
+            normalized_current = normalize_page_url(current_url)
+            if normalized_current in visited_urls:
+                break
+            visited_urls.add(normalized_current)
+
+            try:
+                fetched_page = await crawler.fetch_url(current_url)
+            except Exception as error:
+                raise CouponSearchFailedError(lrg_code, current_url, str(error)) from error
+
+            extracted_records = hotel_card_extractor(fetched_page.html)
+            for record in extracted_records:
+                normalized_record = dict(record)
+                normalized_record["search_type"] = "coupon"
+                normalized_record["area"] = lrg_code
+                normalized_record["coupon_id"] = coupon_id
+                collected_records.append(normalized_record)
+
+            next_url = next_page_extractor(fetched_page.html, current_url)
+            if not should_continue_pagination(next_url, visited_urls):
+                break
+            current_url = next_url
+
+        if lrg_index < len(lrg_codes) - 1:
+            await crawler.sleep_between_areas()
+
+    return deduplicate_hotels_by_normalized_url(collected_records)
+
+
 def _expand_sml_area_codes(
     user_input: SearchAreaInput,
     resolve_sml_codes_for_prefecture: Callable[[str], list[str]],
@@ -210,6 +284,23 @@ def _expand_sml_area_codes(
             area_codes.append(area_code)
 
     return area_codes
+
+
+def _expand_lrg_area_codes(
+    user_input: SearchCouponInput,
+    resolve_lrg_codes_for_prefecture: Callable[[str], list[str]],
+) -> list[str]:
+    lrg_codes: list[str] = []
+    seen: set[str] = set()
+
+    for prefecture_name in user_input.pref:
+        for lrg_code in resolve_lrg_codes_for_prefecture(prefecture_name):
+            if lrg_code in seen:
+                continue
+            seen.add(lrg_code)
+            lrg_codes.append(lrg_code)
+
+    return lrg_codes
 
 
 def _extract_keyword_targets(target_names: list[str]) -> list[str]:

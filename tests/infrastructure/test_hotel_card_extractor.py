@@ -71,3 +71,27 @@ def test_ignores_faq_noise_links_from_search_page() -> None:
     actual = extract_hotel_cards_from_html(html)
 
     assert actual == []
+
+
+def test_extracts_coupon_uww1405_cards_by_yad_no_links() -> None:
+    html = _read_fixture("tests/fixtures/html/hotel_cards_coupon_uww1405.html")
+
+    actual = extract_hotel_cards_from_html(html)
+
+    assert len(actual) == 3
+    assert [record["hotel_name"] for record in actual] == [
+        "札幌グランドホテル",
+        "札幌グランドホテル",
+        "ホテルエミシア札幌",
+    ]
+    assert [record["hotel_url"] for record in actual] == [
+        "https://www.jalan.net/yad321756/",
+        "https://www.jalan.net/yad321756/",
+        "https://www.jalan.net/yad338679/",
+    ]
+    assert [record["plan_name"] for record in actual] == [
+        "朝食付きプラン",
+        "素泊まりプラン",
+        "夕朝食付きプラン",
+    ]
+    assert [record["price"] for record in actual] == [21250, 27000, 18600]

@@ -11,18 +11,30 @@ from pydantic import ValidationError
 from jalan_hotel_finder.application.input_models import (
     MealType,
     SearchAreaInput,
+    SearchCouponInput,
     SearchNamesInput,
 )
 from jalan_hotel_finder.application.search_services import (
     AreaSearchFailedError,
+    CouponSearchFailedError,
     NameSearchFailedError,
+    search_coupon,
     search_area,
     search_names_keyword_one_shot,
 )
 from jalan_hotel_finder.domain.name_matching import InvalidPreferredOptionError
 from jalan_hotel_finder.infrastructure.area_xml_resolver import (
     list_prefecture_names,
+    PrefectureAreaNotFoundError,
+    PrefectureNotFoundError,
+    resolve_lrg_codes_for_prefecture,
     resolve_sml_codes_for_prefecture,
+)
+from jalan_hotel_finder.infrastructure.coupon_name_resolver import (
+    CouponNameAmbiguousError,
+    CouponNameNotFoundError,
+    CouponSourceFetchError,
+    resolve_coupon_id,
 )
 from jalan_hotel_finder.infrastructure.crawler import (
     CrawlFetchError,
@@ -91,6 +103,9 @@ def search_area_command(
 
     try:
         records = asyncio.run(run_search_area_service(user_input))
+    except (PrefectureNotFoundError, PrefectureAreaNotFoundError) as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
     except (AreaSearchFailedError, CrawlFetchError) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=3) from error
@@ -140,6 +155,9 @@ def search_list_command(
     except InvalidPreferredOptionError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=2) from error
+    except (PrefectureNotFoundError, PrefectureAreaNotFoundError) as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
     except (AreaSearchFailedError, NameSearchFailedError, CrawlFetchError) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=3) from error
@@ -155,11 +173,60 @@ def search_list_command(
     )
 
 
-@app.command("coupon", hidden=True)
-def search_coupon_command() -> None:
-    """Unsupported command reserved for future release."""
-    typer.echo("coupon search is not supported in v1", err=True)
-    raise typer.Exit(code=2)
+@app.command("coupon")
+def search_coupon_command(
+    coupon_name: str = typer.Option(..., "--coupon-name"),
+    coupon_source_url: str = typer.Option(..., "--coupon-source-url"),
+    checkin: str = typer.Option(..., "--checkin"),
+    pref: list[str] | None = typer.Option(None, "--pref"),
+    adults: int = typer.Option(1, "--adults"),
+    nights: int = typer.Option(1, "--nights"),
+    parallel: int = typer.Option(2, "--parallel"),
+) -> None:
+    """Run coupon-target search and print a human-readable list to stdout."""
+    normalized_pref = _normalize_prefecture_options(pref)
+
+    try:
+        user_input = SearchCouponInput(
+            coupon_name=coupon_name,
+            coupon_source_url=coupon_source_url,
+            checkin=checkin,
+            pref=normalized_pref,
+            adults=adults,
+            nights=nights,
+            parallel=parallel,
+        )
+    except ValidationError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
+
+    try:
+        records = asyncio.run(run_search_coupon_service(user_input))
+    except (
+        CouponNameNotFoundError,
+        CouponNameAmbiguousError,
+        PrefectureNotFoundError,
+        PrefectureAreaNotFoundError,
+    ) as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
+    except (
+        CouponSearchFailedError,
+        CouponSourceFetchError,
+        CrawlFetchError,
+    ) as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=3) from error
+    except Exception as error:  # unexpected
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(
+        format_search_results(
+            records,
+            max_plans_per_hotel=DEFAULT_MAX_PLANS_PER_HOTEL,
+        )
+    )
 
 
 async def run_search_area_service(user_input: SearchAreaInput) -> list[dict]:
@@ -187,6 +254,22 @@ async def run_search_names_service(user_input: SearchNamesInput) -> list[dict]:
         )
         return await search_names_keyword_one_shot(
             user_input=user_input,
+            crawler=crawler,
+        )
+
+
+async def run_search_coupon_service(user_input: SearchCouponInput) -> list[dict]:
+    """Wire production dependencies for `coupon` command."""
+    async with PlaywrightPageFetcher(page_load_timeout_ms=30_000, headless=True) as fetcher:
+        crawler = PlaywrightCrawler(
+            fetcher=fetcher,
+            parallel=user_input.parallel,
+            area_delay_ms=100,
+        )
+        return await search_coupon(
+            user_input=user_input,
+            resolve_coupon_id=resolve_coupon_id,
+            resolve_lrg_codes_for_prefecture=resolve_lrg_codes_for_prefecture,
             crawler=crawler,
         )
 

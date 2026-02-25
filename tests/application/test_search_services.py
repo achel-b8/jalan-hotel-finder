@@ -3,11 +3,20 @@ from typing import Any
 
 import pytest
 
-from jalan_hotel_finder.application.input_models import SearchAreaInput, SearchNamesInput
-from jalan_hotel_finder.application.query_builder import build_keyword_search_url
+from jalan_hotel_finder.application.input_models import (
+    SearchAreaInput,
+    SearchCouponInput,
+    SearchNamesInput,
+)
+from jalan_hotel_finder.application.query_builder import (
+    build_coupon_search_url,
+    build_keyword_search_url,
+)
 from jalan_hotel_finder.application.search_services import (
     AreaSearchFailedError,
+    CouponSearchFailedError,
     FetchedPage,
+    search_coupon,
     search_area,
     search_names_keyword_one_shot,
     search_names_local_filter,
@@ -49,6 +58,14 @@ def _resolver(prefecture_name: str) -> list[str]:
         return ["SML_010202"]
     if prefecture_name == "青森県":
         return ["SML_020202"]
+    raise ValueError("unknown prefecture")
+
+
+def _lrg_resolver(prefecture_name: str) -> list[str]:
+    if prefecture_name == "北海道":
+        return ["LRG_010200"]
+    if prefecture_name == "青森県":
+        return ["LRG_020200"]
     raise ValueError("unknown prefecture")
 
 
@@ -600,3 +617,116 @@ async def test_search_names_keyword_one_shot_raises_for_unsupported_csv_preferre
             crawler=_TrackingCrawler({}),
             hotel_card_extractor=lambda _: [],
         )
+
+
+@pytest.mark.asyncio
+async def test_search_coupon_keeps_up_to_three_plans_per_hotel_across_multiple_lrg() -> None:
+    user_input = SearchCouponInput(
+        coupon_name="【全国(対象施設のみ)】9,000円お得クーポン",
+        coupon_source_url="https://www.jalan.net/discountCoupon/CAM1598252/",
+        checkin="2026-03-10",
+        pref=["北海道", "青森県"],
+        adults=2,
+    )
+    coupon_id = "COU7128122"
+    url1 = build_coupon_search_url("LRG_010200", user_input, coupon_id=coupon_id)
+    url2 = build_coupon_search_url("LRG_020200", user_input, coupon_id=coupon_id)
+    crawler = _FakeCrawler(
+        html_by_url={
+            url1: "area1",
+            url2: "area2",
+        }
+    )
+
+    actual = await search_coupon(
+        user_input=user_input,
+        resolve_coupon_id=lambda *_: coupon_id,
+        resolve_lrg_codes_for_prefecture=_lrg_resolver,
+        crawler=crawler,
+        hotel_card_extractor=_extractor_from_marker,
+        next_page_extractor=lambda html, url: None,
+    )
+
+    assert len(actual) == 2
+    assert actual[0]["search_type"] == "coupon"
+    assert actual[1]["search_type"] == "coupon"
+    assert actual[0]["coupon_id"] == coupon_id
+    assert actual[1]["coupon_id"] == coupon_id
+    assert actual[0]["hotel_url_normalized"] == "/yad123456"
+    assert actual[1]["hotel_url_normalized"] == "/yad123456"
+
+
+@pytest.mark.asyncio
+async def test_search_coupon_raises_when_one_area_fails() -> None:
+    user_input = SearchCouponInput(
+        coupon_name="【全国(対象施設のみ)】9,000円お得クーポン",
+        coupon_source_url="https://www.jalan.net/discountCoupon/CAM1598252/",
+        checkin="2026-03-10",
+        pref=["北海道"],
+        adults=2,
+    )
+    coupon_id = "COU7128122"
+    target_url = build_coupon_search_url("LRG_010200", user_input, coupon_id=coupon_id)
+    crawler = _FakeCrawler(html_by_url={}, error_urls={target_url})
+
+    with pytest.raises(CouponSearchFailedError):
+        await search_coupon(
+            user_input=user_input,
+            resolve_coupon_id=lambda *_: coupon_id,
+            resolve_lrg_codes_for_prefecture=_lrg_resolver,
+            crawler=crawler,
+            hotel_card_extractor=_extractor_from_marker,
+            next_page_extractor=lambda html, url: None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_search_coupon_returns_empty_when_no_records() -> None:
+    user_input = SearchCouponInput(
+        coupon_name="【全国(対象施設のみ)】9,000円お得クーポン",
+        coupon_source_url="https://www.jalan.net/discountCoupon/CAM1598252/",
+        checkin="2026-03-10",
+        pref=["北海道"],
+        adults=2,
+    )
+    coupon_id = "COU7128122"
+    target_url = build_coupon_search_url("LRG_010200", user_input, coupon_id=coupon_id)
+    crawler = _FakeCrawler(html_by_url={target_url: "empty"})
+
+    actual = await search_coupon(
+        user_input=user_input,
+        resolve_coupon_id=lambda *_: coupon_id,
+        resolve_lrg_codes_for_prefecture=_lrg_resolver,
+        crawler=crawler,
+        hotel_card_extractor=lambda _: [],
+        next_page_extractor=lambda html, url: None,
+    )
+
+    assert actual == []
+
+
+@pytest.mark.asyncio
+async def test_search_coupon_follows_next_page_urls() -> None:
+    user_input = SearchCouponInput(
+        coupon_name="【全国(対象施設のみ)】9,000円お得クーポン",
+        coupon_source_url="https://www.jalan.net/discountCoupon/CAM1598252/",
+        checkin="2026-03-10",
+        pref=["北海道"],
+        adults=2,
+    )
+    coupon_id = "COU7128122"
+    page1_url = build_coupon_search_url("LRG_010200", user_input, coupon_id=coupon_id, idx=0)
+    page2_url = build_coupon_search_url("LRG_010200", user_input, coupon_id=coupon_id, idx=30)
+    crawler = _TrackingCrawler({page1_url: "area1", page2_url: "area2"})
+
+    actual = await search_coupon(
+        user_input=user_input,
+        resolve_coupon_id=lambda *_: coupon_id,
+        resolve_lrg_codes_for_prefecture=_lrg_resolver,
+        crawler=crawler,
+        hotel_card_extractor=_extractor_from_marker,
+        next_page_extractor=lambda html, _: page2_url if html == "area1" else None,
+    )
+
+    assert crawler.called_urls == [page1_url, page2_url]
+    assert len(actual) == 2

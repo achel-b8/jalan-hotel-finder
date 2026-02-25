@@ -8,10 +8,12 @@ from jalan_hotel_finder.application.input_models import (
     KeywordEncoding,
     MealType,
     SearchAreaInput,
+    SearchCouponInput,
 )
 
 
 _SML_CODE_PATTERN = re.compile(r"^SML_(\d{6})$")
+_LRG_CODE_PATTERN = re.compile(r"^LRG_(\d{6})$")
 _MEAL_TYPE_TO_PARAM = {
     MealType.NONE: "0",
     MealType.BREAKFAST: "1",
@@ -105,10 +107,53 @@ def build_keyword_search_url(
     )
 
 
+def build_coupon_search_url(
+    lrg_code: str,
+    user_input: SearchCouponInput,
+    coupon_id: str,
+    *,
+    idx: int = 0,
+) -> str:
+    """Build coupon-target hotel search URL (`uww1405.do`)."""
+    if idx < 0:
+        raise ValueError("idx must be greater than or equal to 0")
+
+    lrg_digits = _extract_lrg_digits(lrg_code)
+    pref_code = f"{lrg_digits[:2]}0000"
+    room_crack = f"{user_input.adults}00000"
+
+    query_params = {
+        "rootCd": "",
+        "afCd": "",
+        "screenId": "UWW7801",
+        "couponId": coupon_id,
+        "stayYear": f"{user_input.checkin.year:04d}",
+        "stayMonth": f"{user_input.checkin.month:02d}",
+        "stayDay": f"{user_input.checkin.day:02d}",
+        "stayCount": str(user_input.nights),
+        "roomCount": "1",
+        "adultNum": str(user_input.adults),
+        "roomCrack": room_crack,
+        "kenCd": pref_code,
+        "lrgCd": lrg_digits,
+        "idx": str(idx),
+    }
+    return urlunsplit(
+        ("https", "www.jalan.net", "/uw/uwp1400/uww1405.do", urlencode(query_params), "")
+    )
+
+
 def _extract_sml_digits(sml_code: str) -> str:
     match = _SML_CODE_PATTERN.fullmatch(sml_code)
     if match is None:
         raise ValueError(f"invalid SML code: {sml_code}")
+    return match.group(1)
+
+
+def _extract_lrg_digits(lrg_code: str) -> str:
+    match = _LRG_CODE_PATTERN.fullmatch(lrg_code)
+    if match is None:
+        raise ValueError(f"invalid LRG code: {lrg_code}")
     return match.group(1)
 
 

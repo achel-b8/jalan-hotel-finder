@@ -6,7 +6,7 @@ import json
 import re
 from collections.abc import Iterable
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import parse_qsl, urljoin, urlsplit
 
 from selectolax.parser import HTMLParser, Node
 
@@ -105,6 +105,15 @@ def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
     seen_card_keys: set[tuple[str, str, int | None]] = set()
     seen_paths_from_modern: set[str] = set()
 
+    for card in _extract_from_coupon_result_dom(tree):
+        normalized_path = _normalize_hotel_path(card["hotel_url"])
+        card_key = (normalized_path, card["plan_name"], card["price"])
+        if card_key in seen_card_keys:
+            continue
+        cards.append(card)
+        seen_card_keys.add(card_key)
+        seen_paths_from_modern.add(normalized_path)
+
     for card in _extract_from_modern_dom(tree):
         normalized_path = _normalize_hotel_path(card["hotel_url"])
         card_key = (normalized_path, card["plan_name"], card["price"])
@@ -166,6 +175,71 @@ def _extract_from_dom(tree: HTMLParser) -> list[dict[str, Any]]:
         seen_paths_from_anchor.add(normalized_path)
 
     return cards
+
+
+def _extract_from_coupon_result_dom(tree: HTMLParser) -> list[dict[str, Any]]:
+    cards: list[dict[str, Any]] = []
+
+    for cassette in tree.css("div.jlnpc-searchResultsCassette"):
+        hotel_anchor = cassette.css_first("h2 a")
+        if hotel_anchor is None:
+            continue
+
+        hotel_url = _normalize_hotel_url(_extract_link_target(hotel_anchor))
+        if not hotel_url:
+            continue
+
+        hotel_name = hotel_anchor.text(strip=True)
+        if not hotel_name:
+            continue
+
+        plan_rows = _extract_coupon_plan_rows(cassette)
+        if plan_rows:
+            for plan_name, plan_price in plan_rows:
+                cards.append(
+                    {
+                        "hotel_name": hotel_name,
+                        "hotel_url": hotel_url,
+                        "plan_name": plan_name,
+                        "price": plan_price,
+                    }
+                )
+            continue
+
+        cards.append(_build_fallback_card(hotel_name, hotel_url, cassette))
+
+    return cards
+
+
+def _extract_coupon_plan_rows(cassette: Node) -> list[tuple[str, int | None]]:
+    plan_rows: list[tuple[str, int | None]] = []
+    seen: set[tuple[str, int | None]] = set()
+    selector = "li.jlnpc-searchResultsCassetteBody__planListItem"
+
+    for row in cassette.css(selector):
+        plan_name = _find_first_text(
+            row,
+            [
+                ".jlnpc-searchResultsCassetteBody__planName a",
+                ".jlnpc-searchResultsCassetteBody__planName",
+            ],
+        )
+        if not plan_name:
+            continue
+
+        price_text = _find_first_text(
+            row,
+            [".jlnpc-searchResultsCassetteBody__planListItemCellTotal"],
+        )
+        plan_price = _parse_price(price_text)
+        key = (plan_name, plan_price)
+        if key in seen:
+            continue
+
+        seen.add(key)
+        plan_rows.append(key)
+
+    return plan_rows
 
 
 def _is_noise_link(anchor: Node) -> bool:
@@ -359,6 +433,11 @@ def _normalize_hotel_url(raw_url: Any) -> str:
     absolute_url = urljoin("https://www.jalan.net", normalized_raw)
     match = _HOTEL_URL_PATTERN.search(absolute_url)
     if match is None:
+        parsed = urlsplit(absolute_url)
+        query_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        yad_no = (query_params.get("yadNo") or "").strip()
+        if len(yad_no) == 6 and yad_no.isdigit():
+            return urljoin("https://www.jalan.net", f"/yad{yad_no}/")
         return ""
 
     path = match.group(0)

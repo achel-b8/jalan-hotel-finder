@@ -4,9 +4,14 @@ from typer.testing import CliRunner
 
 from jalan_hotel_finder.application.search_services import (
     AreaSearchFailedError,
+    CouponSearchFailedError,
     NameSearchFailedError,
 )
 from jalan_hotel_finder.domain.name_matching import InvalidPreferredOptionError
+from jalan_hotel_finder.infrastructure.area_xml_resolver import PrefectureNotFoundError
+from jalan_hotel_finder.infrastructure.coupon_name_resolver import (
+    CouponNameNotFoundError,
+)
 cli_module = importlib.import_module("jalan_hotel_finder.cli.app")
 
 
@@ -297,11 +302,132 @@ def test_cli_returns_exit_code_3_for_fetch_failure(monkeypatch) -> None:
     assert result.exit_code == 3
 
 
-def test_cli_coupon_command_returns_exit_code_2() -> None:
-    result = runner.invoke(app, ["coupon"])
+def test_cli_search_coupon_success_exit_code_0(monkeypatch) -> None:
+    async def _stub_run_search_coupon_service(user_input):
+        return [
+            {
+                "hotel_name": "札幌温泉ホテル",
+                "hotel_url": "https://www.jalan.net/yad123456/",
+                "hotel_url_normalized": "/yad123456",
+                "plan_name": "夕朝食付き",
+                "price": 12000,
+                "search_type": "coupon",
+                "area": "LRG_010200",
+                "coupon_id": "COU7128122",
+            }
+        ]
+
+    monkeypatch.setattr(cli_module, "run_search_coupon_service", _stub_run_search_coupon_service)
+
+    result = runner.invoke(
+        app,
+        [
+            "coupon",
+            "--coupon-name",
+            "【全国(対象施設のみ)】9,000円お得クーポン",
+            "--coupon-source-url",
+            "https://www.jalan.net/discountCoupon/CAM1598252/",
+            "--checkin",
+            "2026-03-10",
+            "--pref",
+            "北海道",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "検索結果: 1件" in result.stdout
+    assert "[1] 宿名: 札幌温泉ホテル" in result.stdout
+
+
+def test_cli_search_coupon_requires_pref_and_returns_exit_code_2() -> None:
+    result = runner.invoke(
+        app,
+        [
+            "coupon",
+            "--coupon-name",
+            "【全国(対象施設のみ)】9,000円お得クーポン",
+            "--coupon-source-url",
+            "https://www.jalan.net/discountCoupon/CAM1598252/",
+            "--checkin",
+            "2026-03-10",
+        ],
+    )
 
     assert result.exit_code == 2
-    assert "not supported" in result.stderr
+
+
+def test_cli_search_coupon_returns_exit_code_2_for_coupon_name_not_found(
+    monkeypatch,
+) -> None:
+    async def _stub_run_search_coupon_service(user_input):
+        raise CouponNameNotFoundError("coupon name not found")
+
+    monkeypatch.setattr(cli_module, "run_search_coupon_service", _stub_run_search_coupon_service)
+
+    result = runner.invoke(
+        app,
+        [
+            "coupon",
+            "--coupon-name",
+            "存在しないクーポン",
+            "--coupon-source-url",
+            "https://www.jalan.net/discountCoupon/CAM1598252/",
+            "--checkin",
+            "2026-03-10",
+            "--pref",
+            "北海道",
+        ],
+    )
+
+    assert result.exit_code == 2
+
+
+def test_cli_search_coupon_returns_exit_code_2_for_unknown_prefecture(monkeypatch) -> None:
+    async def _stub_run_search_coupon_service(user_input):
+        raise PrefectureNotFoundError("prefecture not found in area.xml: 存在しない県")
+
+    monkeypatch.setattr(cli_module, "run_search_coupon_service", _stub_run_search_coupon_service)
+
+    result = runner.invoke(
+        app,
+        [
+            "coupon",
+            "--coupon-name",
+            "【全国(対象施設のみ)】9,000円お得クーポン",
+            "--coupon-source-url",
+            "https://www.jalan.net/discountCoupon/CAM1598252/",
+            "--checkin",
+            "2026-03-10",
+            "--pref",
+            "存在しない県",
+        ],
+    )
+
+    assert result.exit_code == 2
+
+
+def test_cli_search_coupon_returns_exit_code_3_for_fetch_failure(monkeypatch) -> None:
+    async def _stub_run_search_coupon_service(user_input):
+        raise CouponSearchFailedError("LRG_010200", "https://example.com", "timeout")
+
+    monkeypatch.setattr(cli_module, "run_search_coupon_service", _stub_run_search_coupon_service)
+
+    result = runner.invoke(
+        app,
+        [
+            "coupon",
+            "--coupon-name",
+            "【全国(対象施設のみ)】9,000円お得クーポン",
+            "--coupon-source-url",
+            "https://www.jalan.net/discountCoupon/CAM1598252/",
+            "--checkin",
+            "2026-03-10",
+            "--pref",
+            "北海道",
+        ],
+    )
+
+    assert result.exit_code == 3
 
 
 def test_cli_search_names_returns_exit_code_3_for_keyword_fetch_failure(monkeypatch) -> None:

@@ -63,3 +63,17 @@ def test_extract_next_page_url_prefers_smallest_offset_greater_than_current() ->
 
     assert actual is not None
     assert "idx=30" in actual
+
+
+def test_extract_next_page_url_from_select_page_javascript() -> None:
+    html = """
+    <html><body>
+      <a href="javascript:selectPage('30','2')">次へ</a>
+    </body></html>
+    """
+    current = "https://www.jalan.net/uw/uwp1400/uww1405.do?idx=0&couponId=COU1"
+
+    actual = extract_next_page_url_from_html(html, current)
+
+    assert actual is not None
+    assert "idx=30" in actual

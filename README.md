@@ -4,7 +4,7 @@
 
 ## Status
 
-v1 CLI実装完了（2026-02-22）。
+v1 CLI実装完了（2026-02-25）。
 
 ## Spec Documents
 
@@ -99,6 +99,7 @@ jalan-search [--help] <command> [options]
 利用できるサブコマンド:
 - `area`: 都道府県配下のSMLエリアを巡回して検索（US-01）
 - `list`: `data/candidate_hotels.csv` の候補宿名で one-shot キーワード検索（US-02）
+- `coupon`: クーポン名 + 宿泊日 + 都道府県でクーポン対象宿を検索（US-03）
 
 ### `area` オプション
 
@@ -131,6 +132,18 @@ jalan-search [--help] <command> [options]
 - `list` は候補ファイルを `data/candidate_hotels.csv` 固定で使用します（`--names-file` は非対応）。
 - 候補CSVの `優先オプション` は `care-kakenagashi|care-bath-rent|care-private-openair` を受理します。未知トークンがある場合は入力不備として終了コード `2` で終了します。
 - `area` で `--pref` 未指定の場合、検索対象エリアが空になり結果は0件になります。
+
+### `coupon` オプション
+
+| オプション | 必須 | 既定値 | 説明 |
+|---|---|---|---|
+| `--coupon-name <string>` | 必須 | - | クーポン名（完全一致） |
+| `--coupon-source-url <url>` | 必須 | - | クーポン候補を解決するURL |
+| `--checkin YYYY-MM-DD` | 必須 | - | 宿泊日 |
+| `--pref <都道府県名>` | 必須 | - | 複数指定可。`--pref 北海道 --pref 青森県` または `--pref 北海道,青森県` |
+| `--adults <int>` | 任意 | `1` | 大人人数（1以上） |
+| `--nights <int>` | 任意 | `1` | 泊数（1以上） |
+| `--parallel <int>` | 任意 | `2` | 並列数（`1..10`） |
 
 ### 実行例
 
@@ -168,6 +181,16 @@ jalan-search list \
   --pref 北海道
 ```
 
+クーポン対象宿を検索:
+
+```bash
+jalan-search coupon \
+  --coupon-name "2月【じゃらんのお得な10日間】50000円から使える5000円クーポン" \
+  --coupon-source-url "https://www.jalan.net/theme/coupon/kikaku/#couponSearchForm" \
+  --checkin 2026-03-10 \
+  --pref 北海道
+```
+
 ## Output
 
 標準出力（`stdout`）は `text-list` 固定です。ログ/エラーは標準エラー（`stderr`）に出ます。
@@ -200,7 +223,7 @@ area fetch failed: area=SML_010202 url=https://example.com reason=timeout
 |---|---|
 | `0` | 正常終了 |
 | `1` | 予期しない例外 |
-| `2` | 入力不備 / 未対応コマンド（例: `coupon`） |
+| `2` | 入力不備（バリデーション / クーポン未解決 / クーポン曖昧） |
 | `3` | 取得失敗（v1は stop ポリシー固定） |
 
 ## Test Execution

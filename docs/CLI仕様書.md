@@ -1,6 +1,6 @@
 # jalan-hotel-finder CLI ミニマル設計書
 
-更新日: 2026-02-24  
+更新日: 2026-02-25  
 対象: 個人利用の宿検索CLI（Playwright + Python + Linux）
 
 ## 1. 文書目的
@@ -43,10 +43,10 @@
 個人ユーザーとして、手元の宿名リストに含まれる宿だけを結果から抽出したい。  
 理由: 候補リストの可否を短時間で判定したい。
 
-### US-03: 特定クーポン対象宿を検索したい（将来）
+### US-03: 特定クーポン対象宿を検索したい
 個人ユーザーとして、クーポン名で対象宿を絞り込みたい。  
 理由: 実質価格を下げたい。  
-注記: 現時点では公開パラメータによる安定検索仕様が未確認のため初期実装対象外。
+注記: `coupon` はクーポン名（完全一致）+ 宿泊日 + 都道府県指定で検索し、`coupon_source_url` から `couponId` を解決して `uww1405` クエリ検索を行う。
 
 ## 5. 受け入れ要件
 ### 5.1 US-01 受け入れ要件
@@ -68,9 +68,11 @@
 5. 照合後もURLパス単位の同一宿判定を適用し、1宿あたり最大3プランを取得順（おすすめ順）で保持できること。
 6. `csv` の `優先オプション`（`care-kakenagashi|care-bath-rent|care-private-openair`）を候補宿名ごとの keyword URL 条件へ反映できること。未対応オプションを検出した場合は入力不備として終了コード `2` を返すこと。
 
-### 5.3 US-03 受け入れ要件（将来要件）
-1. 初期リリースでは `coupon` サブコマンドを公開しないこと。
-2. `coupon` 相当の要求を受けた場合、未対応である旨を標準エラーに明示し終了コード2を返せること。
+### 5.3 US-03 受け入れ要件
+1. `coupon` コマンドは `--coupon-name` と `--coupon-source-url` と `--checkin` と `--pref` を必須入力として受け付けること。
+2. `coupon` は `coupon_name -> couponId` を解決し、都道府県配下のLRGを展開して `uww1405` をページング（`idx=0,30,60...`）で全取得できること。
+3. クーポン名一致は完全一致（前後空白除去後）とし、未一致/曖昧時は入力不備として終了コード `2` を返すこと。
+4. 出力は `area` / `list` と同一の `text-list` 形式を維持し、0件時は正常終了（終了コード `0`）で `該当する宿はありませんでした。` を返すこと。
 
 ## 6. CLI仕様
 ### 6.1 コマンド構成
@@ -79,6 +81,7 @@
 ```bash
 jalan-search area [options]
 jalan-search list [options]
+jalan-search coupon [options]
 ```
 
 ### 6.2 `area` オプション
@@ -108,7 +111,18 @@ jalan-search list [options]
 
 `list` は候補ファイルを `data/candidate_hotels.csv` 固定で読み込む。`csv` 形式の `優先オプション` 列は任意入力で、`care-kakenagashi|care-bath-rent|care-private-openair` を候補宿名ごとの keyword URL 条件に反映する。候補宿名ごとに `keyword` を生成して one-shot 取得するため、エリア総当たりは行わない。
 
-### 6.4 固定実行設定（CLIオプション非公開）
+### 6.4 `coupon` オプション
+| オプション | 型 | 必須 | 既定値 | 説明 |
+|---|---|---|---|---|
+| `--coupon-name` | string | 必須 | - | クーポン名（完全一致） |
+| `--coupon-source-url` | URL | 必須 | - | クーポン候補を解決する起点URL（`discountCoupon/CAM...` または `theme/coupon/kikaku`） |
+| `--checkin` | `YYYY-MM-DD` | 必須 | - | 宿泊日 |
+| `--pref` | string（複数可、`,` 区切り可） | 必須 | - | 都道府県名（LRG展開に使用） |
+| `--adults` | int | 任意 | 1 | 大人人数 |
+| `--nights` | int | 任意 | 1 | 泊数 |
+| `--parallel` | int | 任意 | 2 | 並列数（1〜10） |
+
+### 6.5 固定実行設定（CLIオプション非公開）
 以下は初期リリースでCLIオプションを公開せず、固定値として扱う。
 
 | 項目 | 固定値 | 補足 |
@@ -128,12 +142,12 @@ jalan-search list [options]
 | `roomCount` | 1 | `--rooms` は未公開 |
 | `dateUndecided` | 0 | 日付未定検索は未公開（`--checkin` 未指定は入力不備） |
 | `careBath` | 0 | 内湯・大浴場条件は未公開 |
-| `search-mode` | `keyword-one-shot` | 1候補名=1リクエスト、ページ送りなし |
+| `search-mode(list)` | `keyword-one-shot` | 1候補名=1リクエスト、ページ送りなし |
 | `match` | `partial` | 完全一致モードは未公開 |
 | 候補ファイルパス | `data/candidate_hotels.csv` | `list` コマンドで固定 |
 | `continue-on-error` 相当 | 非公開/固定 `false` | v1は `stop` 固定。継続実行は将来拡張 |
 
-### 6.5 クエリパラメータ対応
+### 6.6 クエリパラメータ対応
 | CLI入力 | じゃらんパラメータ |
 |---|---|
 | `--checkin` | `stayYear`, `stayMonth`, `stayDay` |
@@ -154,6 +168,14 @@ jalan-search list [options]
 | `list` `優先オプション=care-kakenagashi` | `careKake=1` |
 | `list` `優先オプション=care-bath-rent` | `careBathRent=1` |
 | `list` `優先オプション=care-private-openair` | `carePribateBath=1` |
+| `coupon` 固定URL | `/uw/uwp1400/uww1405.do` |
+| `coupon` クーポン解決 | `couponName` 完全一致で `couponId` を決定 |
+| `coupon` 必須固定パラメータ | `rootCd=`, `afCd=`, `screenId=UWW7801`, `roomCount=1` |
+| `coupon` `--coupon-name/--coupon-source-url` | `couponId` |
+| `coupon` `--pref` | `kenCd`, `lrgCd`（都道府県→LRG展開） |
+| `coupon` `--adults` | `adultNum`, `roomCrack=<adults>00000` |
+| `coupon` `--nights` | `stayCount` |
+| `coupon` ページング | `idx` |
 
 ## 7. 出力仕様
 ### 7.1 表示項目（text-list）
@@ -179,9 +201,9 @@ jalan-search list [options]
 
 ## 8. 実行フロー
 1. CLI引数検証（型、範囲、必須関係）
-2. `area` は `pref` 指定時に `area.xml` からSML展開（固定除外SMLを除く）、`list` は候補宿名と `優先オプション` から keyword URL を生成
+2. `area` は `pref` 指定時に `area.xml` からSML展開（固定除外SMLを除く）、`list` は候補宿名と `優先オプション` から keyword URL を生成、`coupon` は `coupon_source_url` から `couponId` を解決して都道府県をLRG展開する
 3. Playwrightでページ取得（並列 + 遅延制御）
-4. `area` は次ページ（`idx`）を追跡、`list` は1候補名（+候補オプション条件）につき1ページのみ取得
+4. `area` / `coupon` は次ページ（`idx`）を追跡、`list` は1候補名（+候補オプション条件）につき1ページのみ取得
 5. 重複排除と整形
 6. `list` は候補照合（宿名部分一致/宿URLパス一致）を適用
 7. 固定フォーマット（text-list）で出力し、終了コードを返す
@@ -191,7 +213,7 @@ jalan-search list [options]
 |---|---|
 | `0` | 正常終了 |
 | `1` | 予期しない例外 |
-| `2` | 入力不備、未対応機能呼び出し |
+| `2` | 入力不備（バリデーション/候補解決不能/曖昧） |
 | `3` | 取得失敗（初期リリースは `stop` 固定で停止） |
 
 エラー時の標準エラー出力には以下を含める。
@@ -208,6 +230,5 @@ jalan-search list [options]
 - Linux環境で単体実行できること。
 
 ## 11. 将来拡張（本書では未実装）
-- クーポン名による抽出（DOM依存解析）
 - 客室内風呂条件の厳密抽出
 - 抽出項目追加（部屋タイプ、キャンセル条件、ポイント倍率など）

@@ -15,15 +15,17 @@ from jalan_hotel_finder.application.input_models import (
     KeywordEncoding,
     MealType,
     SearchAreaInput,
+    SearchCouponInput,
 )
 from jalan_hotel_finder.application.query_builder import (
+    build_coupon_search_url,
     build_keyword_search_url,
     build_search_area_url,
 )
 
 
 def _parse_params(url: str) -> dict[str, list[str]]:
-    return parse_qs(urlparse(url).query)
+    return parse_qs(urlparse(url).query, keep_blank_values=True)
 
 
 def test_build_search_area_url_maps_checkin_to_stay_date_params() -> None:
@@ -202,3 +204,48 @@ def test_build_keyword_search_url_includes_stay_and_preferred_options_when_speci
     assert params["careKake"] == ["1"]
     assert params["careBathRent"] == ["1"]
     assert params["carePribateBath"] == ["1"]
+
+
+def test_build_coupon_search_url_maps_required_params() -> None:
+    user_input = SearchCouponInput(
+        coupon_name="【全国(対象施設のみ)】9,000円お得クーポン",
+        coupon_source_url="https://www.jalan.net/discountCoupon/CAM1598252/",
+        checkin="2026-03-10",
+        pref=["北海道"],
+        adults=2,
+        nights=3,
+    )
+
+    url = build_coupon_search_url("LRG_010200", user_input, coupon_id="COU7128122")
+    parsed = urlparse(url)
+    params = _parse_params(url)
+
+    assert parsed.path == "/uw/uwp1400/uww1405.do"
+    assert params["rootCd"] == [""]
+    assert params["afCd"] == [""]
+    assert params["screenId"] == ["UWW7801"]
+    assert params["couponId"] == ["COU7128122"]
+    assert params["stayYear"] == ["2026"]
+    assert params["stayMonth"] == ["03"]
+    assert params["stayDay"] == ["10"]
+    assert params["stayCount"] == ["3"]
+    assert params["roomCount"] == ["1"]
+    assert params["adultNum"] == ["2"]
+    assert params["roomCrack"] == ["200000"]
+    assert params["kenCd"] == ["010000"]
+    assert params["lrgCd"] == ["010200"]
+    assert params["idx"] == ["0"]
+
+
+def test_build_coupon_search_url_supports_idx_override() -> None:
+    user_input = SearchCouponInput(
+        coupon_name="a",
+        coupon_source_url="https://www.jalan.net/discountCoupon/CAM1598252/",
+        checkin="2026-03-10",
+        pref=["北海道"],
+    )
+
+    url = build_coupon_search_url("LRG_010200", user_input, coupon_id="COU1", idx=30)
+    params = _parse_params(url)
+
+    assert params["idx"] == ["30"]

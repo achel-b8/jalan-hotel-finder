@@ -4,7 +4,7 @@ from datetime import date
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field
 
 
 class MealType(StrEnum):
@@ -50,4 +50,16 @@ class SearchNamesInput(BaseModel):
     nights: int = Field(default=1, ge=1)
     max_price: int | None = Field(default=None, ge=0)
     meal_type: MealType | None = None
+    parallel: int = Field(default=2, ge=1, le=10)
+
+
+class SearchCouponInput(BaseModel):
+    """Validated input for `coupon`."""
+
+    coupon_name: str = Field(min_length=1)
+    coupon_source_url: AnyHttpUrl
+    checkin: date
+    pref: list[str] = Field(min_length=1)
+    adults: int = Field(default=1, ge=1)
+    nights: int = Field(default=1, ge=1)
     parallel: int = Field(default=2, ge=1, le=10)

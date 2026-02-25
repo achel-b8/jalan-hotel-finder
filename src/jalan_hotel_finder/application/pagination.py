@@ -1,8 +1,12 @@
 """Pagination helpers for Jalan result pages."""
 
+import re
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 from selectolax.parser import HTMLParser
+
+
+_SELECT_PAGE_PATTERN = re.compile(r"selectPage\(\s*['\"]?(?P<idx>\d+)['\"]?")
 
 
 def build_next_page_url(current_url: str, step: int = 30) -> str:
@@ -33,12 +37,23 @@ def extract_next_page_url_from_html(html: str, current_url: str) -> str | None:
         "a[rel='next'][href], "
         "a[aria-label*='次'][href], "
         "a[href*='idx='], "
-        "a[href*='dispStartIndex=']"
+        "a[href*='dispStartIndex='], "
+        "a[href*='selectPage']"
     )
 
     for link in tree.css(selector):
         href = (link.attributes.get("href") or "").strip()
         if not href:
+            continue
+
+        select_page_match = _SELECT_PAGE_PATTERN.search(href)
+        if select_page_match is not None:
+            next_offset = int(select_page_match.group("idx"))
+            if next_offset <= current_offset:
+                continue
+
+            next_url = _replace_offset_in_url(current_url, next_offset)
+            candidates.append((next_offset, next_url))
             continue
 
         next_url = urljoin(current_url, href)
@@ -88,3 +103,13 @@ def _extract_offset_from_url(url: str) -> int | None:
     if not raw_value.isdigit():
         return None
     return int(raw_value)
+
+
+def _replace_offset_in_url(current_url: str, next_offset: int) -> str:
+    parts = urlsplit(current_url)
+    params = dict(parse_qsl(parts.query, keep_blank_values=True))
+    offset_key = "dispStartIndex" if "dispStartIndex" in params else "idx"
+    params[offset_key] = str(next_offset)
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(params), parts.fragment)
+    )

@@ -1,6 +1,6 @@
 # jalan-hotel-finder 実装TODOワークリスト（v1）
 
-更新日: 2026-02-24  
+更新日: 2026-02-25  
 参照仕様:
 - `docs/CLI仕様書.md`
 - `docs/技術アーキテクチャ設計書.md`
@@ -196,14 +196,12 @@
 - 成果物:
   - `jalan-search area`
   - `jalan-search list`
-  - 未対応機能（coupon相当）時のエラーメッセージ
 - 依存タスク: T02, T10, T11, T12
 - 前提条件: なし
 - テスト:
   - `CliRunner` で成功系（終了コード0）
   - 入力不備（終了コード2）
   - 取得失敗（終了コード3）
-  - 未対応機能呼び出し（終了コード2）
 - 完了条件: `CLI仕様書 6, 9` を満たす。
 
 ### [x] T14: 結合テストと最終受け入れ確認
@@ -296,6 +294,27 @@
   - `tests/cli/test_cli_commands.py::test_cli_returns_exit_code_2_for_invalid_preferred_option`
 - 完了条件: `list` で候補CSVの `優先オプション` が keyword URL に反映され、不正トークンは `終了コード2` で停止する。
 
+### [x] T20: US-03 `coupon` 実装（クーポン名 + 指定日 + 都道府県）
+- 目的: `coupon` コマンドを公開し、クーポン対象かつ宿泊可能な宿一覧を取得できるようにする。
+- 成果物:
+  - `SearchCouponInput` と `coupon` CLIオプションの追加（`--coupon-name`, `--coupon-source-url`, `--checkin`, `--pref`）
+  - `couponName -> couponId` 解決（`discountCoupon/CAM...` HTML / `theme/coupon/kikaku` `area.json`）
+  - 都道府県→LRG展開、`uww1405` クエリ生成、`idx` ページング追跡
+  - `uww1405` DOM抽出（`jlnpc-searchResultsCassette`）と `yadNo` URL正規化
+  - 終了コード運用（入力不備=2, 取得失敗=3）
+- 依存タスク: T02, T03, T04, T06, T07, T10, T13, T14
+- 前提条件: `coupon` はクーポン名完全一致でID解決すること
+- テスト:
+  - `tests/infrastructure/test_coupon_name_resolver.py`（解決/未一致/曖昧/JSON異常）
+  - `tests/application/test_query_builder.py::test_build_coupon_search_url_maps_required_params`
+  - `tests/application/test_pagination.py::test_extract_next_page_url_from_select_page_javascript`
+  - `tests/infrastructure/test_hotel_card_extractor.py::test_extracts_coupon_uww1405_cards_by_yad_no_links`
+  - `tests/application/test_search_services.py::test_search_coupon_keeps_up_to_three_plans_per_hotel_across_multiple_lrg`
+  - `tests/cli/test_cli_commands.py::test_cli_search_coupon_success_exit_code_0`
+  - `tests/cli/test_cli_commands.py::test_cli_search_coupon_returns_exit_code_2_for_coupon_name_not_found`
+  - `tests/cli/test_cli_commands.py::test_cli_search_coupon_returns_exit_code_3_for_fetch_failure`
+- 完了条件: `CLI仕様書 5.3` を満たし、`coupon` 正常系/入力不備/取得失敗の終了コードが仕様どおりである。
+
 ---
 
 ## 依存関係サマリ（簡易）
@@ -304,6 +323,7 @@
 - 入力互換拡張パス: `T02 + T13 → T17`
 - 予算上限拡張パス: `T02 + T03 + T11 + T13 → T18`
 - 候補オプション反映パス: `T02 + T03 + T11 + T13 → T19`
+- クーポン検索実装パス: `T02 + T03 + T04 + T06 + T07 + T10 + T13 + T14 → T20`
 - 最小縦スライス（最初の実装候補）: `T00 → T01 → T02 → T03 → T04 → T06 → T07 → T08 → T09 → T10`
 
 ## 着手順の提案（最初の3タスク）
@@ -329,5 +349,7 @@
 | US-02-2 `keyword one-shot + 宿名部分一致/URL一致 + 候補オプション反映` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_fetches_each_keyword_once` / `tests/application/test_search_services.py::test_search_names_keyword_one_shot_uses_loaded_csv_candidates_for_url_match` / `tests/application/test_search_services.py::test_search_names_keyword_one_shot_applies_csv_preferred_options_to_keyword_url` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_partial_match_and_non_match` / `tests/domain/test_name_matching.py::test_filter_hotels_by_names_matches_when_candidate_is_hotel_url` / `tests/domain/test_name_matching.py::test_load_preferred_options_by_name_reads_supported_tokens` |
 | US-02-3 `0件でも正常/該当なしメッセージ` | `tests/application/test_search_services.py::test_search_names_keyword_one_shot_returns_empty_when_only_url_candidates` / `tests/output/test_json_formatter.py::test_shows_message_when_no_records` |
 | US-02-4 `照合後も同一宿判定 + 1宿最大3件維持` | `tests/application/test_search_services.py::test_search_names_local_filter_keeps_up_to_three_plans_after_match` / `tests/output/test_json_formatter.py::test_limits_plans_to_three_per_hotel_in_recommendation_order` |
-| US-03-1 `coupon非公開(未対応)` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |
-| US-03-2 `未対応要求はstderr+終了コード2` | `tests/cli/test_cli_commands.py::test_cli_coupon_command_returns_exit_code_2` |
+| US-03-1 `coupon入力（クーポン名/起点URL/宿泊日/pref）受理` | `tests/application/test_input_models.py::test_accepts_valid_coupon_input` / `tests/application/test_input_models.py::test_rejects_empty_pref_for_search_coupon` / `tests/cli/test_cli_commands.py::test_cli_search_coupon_requires_pref_and_returns_exit_code_2` |
+| US-03-2 `couponName->couponId解決（完全一致/未一致/曖昧）` | `tests/infrastructure/test_coupon_name_resolver.py::test_resolves_coupon_id_from_discount_coupon_page_html` / `tests/infrastructure/test_coupon_name_resolver.py::test_resolves_coupon_id_from_kikaku_area_json` / `tests/infrastructure/test_coupon_name_resolver.py::test_raises_when_coupon_name_is_not_found` / `tests/infrastructure/test_coupon_name_resolver.py::test_raises_when_coupon_name_is_ambiguous` |
+| US-03-3 `uww1405取得 + idxページング + 同一宿最大3件` | `tests/application/test_query_builder.py::test_build_coupon_search_url_maps_required_params` / `tests/application/test_pagination.py::test_extract_next_page_url_from_select_page_javascript` / `tests/application/test_search_services.py::test_search_coupon_follows_next_page_urls` / `tests/application/test_search_services.py::test_search_coupon_keeps_up_to_three_plans_per_hotel_across_multiple_lrg` |
+| US-03-4 `終了コード運用（0/2/3）` | `tests/cli/test_cli_commands.py::test_cli_search_coupon_success_exit_code_0` / `tests/cli/test_cli_commands.py::test_cli_search_coupon_returns_exit_code_2_for_coupon_name_not_found` / `tests/cli/test_cli_commands.py::test_cli_search_coupon_returns_exit_code_3_for_fetch_failure` |

@@ -16,6 +16,10 @@ class PrefectureNotFoundError(ValueError):
     """Raised when the requested prefecture does not exist in area.xml."""
 
 
+class PrefectureAreaNotFoundError(ValueError):
+    """Raised when no valid area codes exist for the requested prefecture."""
+
+
 def list_prefecture_names(area_xml_path: Path | None = None) -> list[str]:
     """Return unique, non-empty prefecture names from area.xml."""
     xml_path = area_xml_path or DEFAULT_AREA_XML_PATH
@@ -80,6 +84,54 @@ def resolve_sml_codes_for_prefecture(
         sml_codes.append(sml_code)
 
     if not sml_codes:
-        raise ValueError(f"no SML areas found for prefecture: {normalized_prefecture}")
+        raise PrefectureAreaNotFoundError(
+            f"no SML areas found for prefecture: {normalized_prefecture}"
+        )
 
     return sml_codes
+
+
+def resolve_lrg_codes_for_prefecture(
+    prefecture_name: str,
+    area_xml_path: Path | None = None,
+) -> list[str]:
+    """Return unique, non-empty LRG codes for one prefecture name."""
+    normalized_prefecture = prefecture_name.strip()
+    if not normalized_prefecture:
+        raise ValueError("prefecture_name must not be empty")
+
+    xml_path = area_xml_path or DEFAULT_AREA_XML_PATH
+    root = etree.parse(str(xml_path)).getroot()
+
+    prefecture_element = None
+    for candidate in root.findall("./Prefecture"):
+        if candidate.get("name") == normalized_prefecture:
+            prefecture_element = candidate
+            break
+
+    if prefecture_element is None:
+        raise PrefectureNotFoundError(
+            f"prefecture not found in area.xml: {normalized_prefecture}"
+        )
+
+    lrg_codes: list[str] = []
+    seen_codes: set[str] = set()
+
+    for large_area in prefecture_element.findall(".//LargeArea"):
+        code = (large_area.get("cd") or "").strip()
+        if not code or len(code) != 6 or not code.isdigit():
+            continue
+
+        lrg_code = f"LRG_{code}"
+        if lrg_code in seen_codes:
+            continue
+
+        seen_codes.add(lrg_code)
+        lrg_codes.append(lrg_code)
+
+    if not lrg_codes:
+        raise PrefectureAreaNotFoundError(
+            f"no LRG areas found for prefecture: {normalized_prefecture}"
+        )
+
+    return lrg_codes

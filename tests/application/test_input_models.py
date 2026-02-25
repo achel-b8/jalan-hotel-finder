@@ -14,6 +14,7 @@ if str(SRC_DIR) not in sys.path:
 from jalan_hotel_finder.application.input_models import (
     MealType,
     SearchAreaInput,
+    SearchCouponInput,
     SearchNamesInput,
 )
 
@@ -112,5 +113,41 @@ def test_rejects_invalid_checkin_format() -> None:
     with pytest.raises(ValidationError):
         SearchAreaInput(
             checkin="2026/03/10",
+            pref=["北海道"],
+        )
+
+
+def test_accepts_valid_search_coupon_input() -> None:
+    actual = SearchCouponInput(
+        coupon_name="【全国(対象施設のみ)】9,000円お得クーポン",
+        coupon_source_url="https://www.jalan.net/discountCoupon/CAM1598252/",
+        checkin="2026-03-10",
+        pref=["北海道"],
+        adults=2,
+        nights=2,
+        parallel=2,
+    )
+
+    assert actual.checkin.isoformat() == "2026-03-10"
+    assert actual.pref == ["北海道"]
+    assert actual.parallel == 2
+
+
+def test_rejects_search_coupon_input_without_pref() -> None:
+    with pytest.raises(ValidationError):
+        SearchCouponInput(
+            coupon_name="【全国(対象施設のみ)】9,000円お得クーポン",
+            coupon_source_url="https://www.jalan.net/discountCoupon/CAM1598252/",
+            checkin="2026-03-10",
+            pref=[],
+        )
+
+
+def test_rejects_search_coupon_input_with_invalid_source_url() -> None:
+    with pytest.raises(ValidationError):
+        SearchCouponInput(
+            coupon_name="【全国(対象施設のみ)】9,000円お得クーポン",
+            coupon_source_url="not-url",
+            checkin="2026-03-10",
             pref=["北海道"],
         )

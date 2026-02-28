@@ -80,7 +80,6 @@ PY
 `jalan-search` をグローバルに使う場合は、リポジトリ直下で以下を実行します。
 
 ```bash
-cd /mnt/c/users/ytanaka/Documents/Jaran
 python -m pip install --user --break-system-packages -e .
 ```
 

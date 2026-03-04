@@ -6,6 +6,7 @@ from jalan_hotel_finder.infrastructure.area_xml_resolver import (
     PrefectureAreaNotFoundError,
     PrefectureNotFoundError,
     list_prefecture_names,
+    resolve_area_routes_for_prefecture,
     resolve_lrg_codes_for_prefecture,
     resolve_sml_codes_for_prefecture,
 )
@@ -19,13 +20,48 @@ def test_resolves_sml_codes_for_representative_prefecture() -> None:
     assert len(actual) > 10
 
 
-def test_excludes_fixed_blocked_sml_codes_from_results() -> None:
-    hokkaido = resolve_sml_codes_for_prefecture("北海道")
-    ibaraki = resolve_sml_codes_for_prefecture("茨城県")
+def test_resolves_area_routes_for_representative_prefecture() -> None:
+    routes = resolve_area_routes_for_prefecture("北海道")
 
-    assert "SML_013508" not in hokkaido
-    assert "SML_101402" not in ibaraki
-    assert "SML_101405" in ibaraki
+    assert any(route.sml_code == "SML_010202" for route in routes)
+    assert len(routes) > 10
+
+
+def test_applies_relocated_route_overrides_instead_of_excluding_codes() -> None:
+    hokkaido_routes = resolve_area_routes_for_prefecture("北海道")
+    ibaraki_routes = resolve_area_routes_for_prefecture("茨城県")
+    shizuoka_routes = resolve_area_routes_for_prefecture("静岡県")
+    hiroshima_routes = resolve_area_routes_for_prefecture("広島県")
+
+    hokkaido_okushiri = next(route for route in hokkaido_routes if route.sml_code == "SML_013508")
+    ibaraki_kashima = next(route for route in ibaraki_routes if route.sml_code == "SML_101402")
+    shizuoka_kakegawa = next(route for route in shizuoka_routes if route.sml_code == "SML_212910")
+    shizuoka_iwata = next(route for route in shizuoka_routes if route.sml_code == "SML_212912")
+    hiroshima_mihara = next(route for route in hiroshima_routes if route.sml_code == "SML_340305")
+    hiroshima_kure = next(route for route in hiroshima_routes if route.sml_code == "SML_340308")
+
+    assert hokkaido_okushiri.lrg_code == "LRG_011400"
+    assert ibaraki_kashima.lrg_code == "LRG_101100"
+    assert shizuoka_kakegawa.lrg_code == "LRG_213700"
+    assert shizuoka_iwata.lrg_code == "LRG_213700"
+    assert hiroshima_mihara.lrg_code == "LRG_341100"
+    assert hiroshima_kure.lrg_code == "LRG_341100"
+
+
+def test_excludes_remaining_fixed_invalid_sml_codes_from_results() -> None:
+    shiga = resolve_sml_codes_for_prefecture("滋賀県")
+
+    assert "SML_251105" not in shiga
+
+
+def test_previous_excluded_codes_are_now_included_via_relocated_routes() -> None:
+    shizuoka = resolve_sml_codes_for_prefecture("静岡県")
+    hiroshima = resolve_sml_codes_for_prefecture("広島県")
+
+    assert "SML_212910" in shizuoka
+    assert "SML_212912" in shizuoka
+    assert "SML_340305" in hiroshima
+    assert "SML_340308" in hiroshima
 
 
 def test_raises_when_prefecture_is_unknown() -> None:

@@ -1,16 +1,26 @@
-"""Resolve prefecture names to Jalan SML area codes via bundled area.xml."""
+"""Resolve prefecture names to Jalan area route codes via bundled area.xml."""
 
+from collections.abc import Mapping
 from pathlib import Path
 
 from lxml import etree
 
+from jalan_hotel_finder.application.area_routes import AreaRoute
+
 
 DEFAULT_AREA_XML_PATH = Path(__file__).resolve().parent / "data" / "area.xml"
 EXCLUDED_SML_CODES_V1: set[str] = {
-    # 2026-02-24 observation: this area consistently returns Jalan error page.
-    "SML_013508",
-    # 2026-03-04 observation: this area consistently returns Jalan error page.
-    "SML_101402",
+    # 2026-03-05 live observation: this SML route remains invalid/non-public.
+    "SML_251105",
+}
+RELOCATED_SML_TO_LRG_OVERRIDES_V1: dict[str, str] = {
+    # 2026-03-05 live observation: these SML are now valid under different LRG routes.
+    "SML_013508": "LRG_011400",
+    "SML_101402": "LRG_101100",
+    "SML_212910": "LRG_213700",
+    "SML_212912": "LRG_213700",
+    "SML_340305": "LRG_341100",
+    "SML_340308": "LRG_341100",
 }
 
 
@@ -47,8 +57,25 @@ def resolve_sml_codes_for_prefecture(
     prefecture_name: str,
     area_xml_path: Path | None = None,
     excluded_sml_codes: set[str] | None = None,
+    relocated_sml_to_lrg_overrides: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Return unique, non-empty SML codes for one prefecture name."""
+    routes = resolve_area_routes_for_prefecture(
+        prefecture_name=prefecture_name,
+        area_xml_path=area_xml_path,
+        excluded_sml_codes=excluded_sml_codes,
+        relocated_sml_to_lrg_overrides=relocated_sml_to_lrg_overrides,
+    )
+    return [route.sml_code for route in routes]
+
+
+def resolve_area_routes_for_prefecture(
+    prefecture_name: str,
+    area_xml_path: Path | None = None,
+    excluded_sml_codes: set[str] | None = None,
+    relocated_sml_to_lrg_overrides: Mapping[str, str] | None = None,
+) -> list[AreaRoute]:
+    """Return unique, non-empty area routes for one prefecture name."""
     normalized_prefecture = prefecture_name.strip()
     if not normalized_prefecture:
         raise ValueError("prefecture_name must not be empty")
@@ -67,30 +94,72 @@ def resolve_sml_codes_for_prefecture(
             f"prefecture not found in area.xml: {normalized_prefecture}"
         )
 
-    sml_codes: list[str] = []
-    seen_codes: set[str] = set()
-    excluded = excluded_sml_codes or EXCLUDED_SML_CODES_V1
+    pref_code = (prefecture_element.get("cd") or "").strip()
+    if len(pref_code) != 6 or not pref_code.isdigit():
+        raise PrefectureAreaNotFoundError(
+            f"invalid prefecture code in area.xml: {normalized_prefecture}"
+        )
 
-    for small_area in prefecture_element.findall(".//SmallArea"):
-        code = (small_area.get("cd") or "").strip()
+    lrg_name_by_code: dict[str, str] = {}
+    for large_area in prefecture_element.findall("./LargeArea"):
+        code = (large_area.get("cd") or "").strip()
         if not code or len(code) != 6 or not code.isdigit():
             continue
+        lrg_name_by_code[f"LRG_{code}"] = (large_area.get("name") or "").strip()
 
-        sml_code = f"SML_{code}"
-        if sml_code in excluded:
+    routes: list[AreaRoute] = []
+    seen_sml_codes: set[str] = set()
+    excluded = (
+        EXCLUDED_SML_CODES_V1
+        if excluded_sml_codes is None
+        else excluded_sml_codes
+    )
+    relocated = (
+        RELOCATED_SML_TO_LRG_OVERRIDES_V1
+        if relocated_sml_to_lrg_overrides is None
+        else relocated_sml_to_lrg_overrides
+    )
+
+    for large_area in prefecture_element.findall("./LargeArea"):
+        lrg_digits = (large_area.get("cd") or "").strip()
+        if not lrg_digits or len(lrg_digits) != 6 or not lrg_digits.isdigit():
             continue
-        if sml_code in seen_codes:
-            continue
 
-        seen_codes.add(sml_code)
-        sml_codes.append(sml_code)
+        base_lrg_code = f"LRG_{lrg_digits}"
+        base_lrg_name = (large_area.get("name") or "").strip()
 
-    if not sml_codes:
+        for small_area in large_area.findall("./SmallArea"):
+            sml_digits = (small_area.get("cd") or "").strip()
+            if not sml_digits or len(sml_digits) != 6 or not sml_digits.isdigit():
+                continue
+
+            sml_code = f"SML_{sml_digits}"
+            if sml_code in excluded:
+                continue
+            if sml_code in seen_sml_codes:
+                continue
+
+            resolved_lrg_code = relocated.get(sml_code, base_lrg_code)
+            resolved_lrg_name = lrg_name_by_code.get(resolved_lrg_code, base_lrg_name)
+
+            routes.append(
+                AreaRoute(
+                    pref_code=pref_code,
+                    lrg_code=resolved_lrg_code,
+                    sml_code=sml_code,
+                    pref_name=normalized_prefecture,
+                    lrg_name=resolved_lrg_name,
+                    sml_name=(small_area.get("name") or "").strip(),
+                )
+            )
+            seen_sml_codes.add(sml_code)
+
+    if not routes:
         raise PrefectureAreaNotFoundError(
             f"no SML areas found for prefecture: {normalized_prefecture}"
         )
 
-    return sml_codes
+    return routes
 
 
 def resolve_lrg_codes_for_prefecture(

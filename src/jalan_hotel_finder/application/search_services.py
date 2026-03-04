@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 from typing import Any, Protocol
 
+from jalan_hotel_finder.application.area_routes import AreaRoute
 from jalan_hotel_finder.application.input_models import (
     SearchAreaInput,
     SearchCouponInput,
@@ -89,22 +90,23 @@ class CrawlerPort(Protocol):
 
 async def search_area(
     user_input: SearchAreaInput,
-    resolve_sml_codes_for_prefecture: Callable[[str], list[str]],
+    resolve_area_routes_for_prefecture: Callable[[str], list[AreaRoute]],
     crawler: CrawlerPort,
     hotel_card_extractor: Callable[[str], list[dict[str, Any]]] = extract_hotel_cards_from_html,
     next_page_extractor: Callable[[str, str], str | None] = extract_next_page_url_from_html,
 ) -> list[dict[str, Any]]:
     """Run area search flow and return deduplicated records."""
-    area_codes = _expand_sml_area_codes(user_input, resolve_sml_codes_for_prefecture)
-    if not area_codes:
+    area_routes = _expand_area_routes(user_input, resolve_area_routes_for_prefecture)
+    if not area_routes:
         return []
 
     collected_records: list[dict[str, Any]] = []
 
-    for area_index, area_code in enumerate(area_codes):
-        start_url = build_search_area_url(area_code, user_input)
+    for area_index, area_route in enumerate(area_routes):
+        start_url = build_search_area_url(area_route, user_input)
         current_url: str | None = start_url
         visited_urls: set[str] = set()
+        area_code = area_route.sml_code
 
         while current_url is not None:
             normalized_current = normalize_page_url(current_url)
@@ -130,7 +132,7 @@ async def search_area(
 
             current_url = next_url
 
-        if area_index < len(area_codes) - 1:
+        if area_index < len(area_routes) - 1:
             await crawler.sleep_between_areas()
 
     return deduplicate_hotels_by_normalized_url(collected_records)
@@ -138,11 +140,11 @@ async def search_area(
 
 async def search_names_local_filter(
     user_input: SearchNamesInput,
-    resolve_sml_codes_for_prefecture: Callable[[str], list[str]],
+    resolve_area_routes_for_prefecture: Callable[[str], list[AreaRoute]],
     crawler: CrawlerPort,
     names_loader: Callable[[Path], list[str]] = load_hotel_names,
     area_search_runner: Callable[
-        [SearchAreaInput, Callable[[str], list[str]], CrawlerPort],
+        [SearchAreaInput, Callable[[str], list[AreaRoute]], CrawlerPort],
         Awaitable[list[dict[str, Any]]],
     ] = search_area,
 ) -> list[dict[str, Any]]:
@@ -161,7 +163,7 @@ async def search_names_local_filter(
 
     area_results = await area_search_runner(
         user_input=area_input,
-        resolve_sml_codes_for_prefecture=resolve_sml_codes_for_prefecture,
+        resolve_area_routes_for_prefecture=resolve_area_routes_for_prefecture,
         crawler=crawler,
     )
 
@@ -269,21 +271,21 @@ async def search_coupon(
     return deduplicate_hotels_by_normalized_url(collected_records)
 
 
-def _expand_sml_area_codes(
+def _expand_area_routes(
     user_input: SearchAreaInput,
-    resolve_sml_codes_for_prefecture: Callable[[str], list[str]],
-) -> list[str]:
-    area_codes: list[str] = []
+    resolve_area_routes_for_prefecture: Callable[[str], list[AreaRoute]],
+) -> list[AreaRoute]:
+    area_routes: list[AreaRoute] = []
     seen: set[str] = set()
 
     for prefecture_name in user_input.pref:
-        for area_code in resolve_sml_codes_for_prefecture(prefecture_name):
-            if area_code in seen:
+        for route in resolve_area_routes_for_prefecture(prefecture_name):
+            if route.sml_code in seen:
                 continue
-            seen.add(area_code)
-            area_codes.append(area_code)
+            seen.add(route.sml_code)
+            area_routes.append(route)
 
-    return area_codes
+    return area_routes
 
 
 def _expand_lrg_area_codes(

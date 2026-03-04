@@ -11,6 +11,7 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from jalan_hotel_finder.application.area_routes import AreaRoute
 from jalan_hotel_finder.application.input_models import (
     KeywordEncoding,
     MealType,
@@ -28,10 +29,25 @@ def _parse_params(url: str) -> dict[str, list[str]]:
     return parse_qs(urlparse(url).query, keep_blank_values=True)
 
 
+def _area_route(
+    pref_code: str = "010000",
+    lrg_code: str = "LRG_010200",
+    sml_code: str = "SML_010202",
+) -> AreaRoute:
+    return AreaRoute(
+        pref_code=pref_code,
+        lrg_code=lrg_code,
+        sml_code=sml_code,
+        pref_name="北海道",
+        lrg_name="札幌",
+        sml_name="ススキノ・大通",
+    )
+
+
 def test_build_search_area_url_maps_checkin_to_stay_date_params() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10")
 
-    url = build_search_area_url("SML_010202", user_input)
+    url = build_search_area_url(_area_route(), user_input)
 
     parsed = urlparse(url)
     params = _parse_params(url)
@@ -59,7 +75,7 @@ def test_build_search_area_url_maps_meal_type_enum_values(
 ) -> None:
     user_input = SearchAreaInput(checkin="2026-03-10", meal_type=meal_type)
 
-    url = build_search_area_url("SML_010202", user_input)
+    url = build_search_area_url(_area_route(), user_input)
     params = _parse_params(url)
 
     assert params["mealType"] == [expected]
@@ -68,7 +84,7 @@ def test_build_search_area_url_maps_meal_type_enum_values(
 def test_build_search_area_url_sets_fixed_query_params() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10")
 
-    url = build_search_area_url("SML_010202", user_input)
+    url = build_search_area_url(_area_route(), user_input)
     params = _parse_params(url)
 
     assert params["roomCount"] == ["1"]
@@ -79,7 +95,7 @@ def test_build_search_area_url_sets_fixed_query_params() -> None:
 def test_build_search_area_url_includes_max_price_when_max_price_is_specified() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10", max_price=15000)
 
-    url = build_search_area_url("SML_010202", user_input)
+    url = build_search_area_url(_area_route(), user_input)
     params = _parse_params(url)
 
     assert params["maxPrice"] == ["15000"]
@@ -88,7 +104,7 @@ def test_build_search_area_url_includes_max_price_when_max_price_is_specified() 
 def test_build_search_area_url_omits_max_price_when_max_price_is_unspecified() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10")
 
-    url = build_search_area_url("SML_010202", user_input)
+    url = build_search_area_url(_area_route(), user_input)
     params = _parse_params(url)
 
     assert "maxPrice" not in params
@@ -97,7 +113,7 @@ def test_build_search_area_url_omits_max_price_when_max_price_is_unspecified() -
 def test_build_search_area_url_omits_meal_type_when_unspecified() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10")
 
-    url = build_search_area_url("SML_010202", user_input)
+    url = build_search_area_url(_area_route(), user_input)
     params = _parse_params(url)
 
     assert "mealType" not in params
@@ -111,7 +127,7 @@ def test_build_search_area_url_includes_care_params_when_enabled() -> None:
         care_private_openair=True,
     )
 
-    url = build_search_area_url("SML_010202", user_input)
+    url = build_search_area_url(_area_route(), user_input)
     params = _parse_params(url)
 
     assert params["careKake"] == ["1"]
@@ -127,12 +143,26 @@ def test_build_search_area_url_omits_optional_care_params_when_disabled() -> Non
         care_private_openair=False,
     )
 
-    url = build_search_area_url("SML_010202", user_input)
+    url = build_search_area_url(_area_route(), user_input)
     params = _parse_params(url)
 
     assert "careKake" not in params
     assert "careBathRent" not in params
     assert "carePribateBath" not in params
+
+
+def test_build_search_area_url_uses_route_codes_without_sml_digit_inference() -> None:
+    user_input = SearchAreaInput(checkin="2026-03-10")
+    route = _area_route(
+        pref_code="010000",
+        lrg_code="LRG_011400",
+        sml_code="SML_013508",
+    )
+
+    url = build_search_area_url(route, user_input)
+    parsed = urlparse(url)
+
+    assert parsed.path == "/010000/LRG_011400/SML_013508/"
 
 
 def test_build_keyword_search_url_uses_cp932_percent_encoding() -> None:

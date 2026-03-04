@@ -27,8 +27,8 @@ from jalan_hotel_finder.infrastructure.area_xml_resolver import (
     list_prefecture_names,
     PrefectureAreaNotFoundError,
     PrefectureNotFoundError,
+    resolve_area_routes_for_prefecture,
     resolve_lrg_codes_for_prefecture,
-    resolve_sml_codes_for_prefecture,
 )
 from jalan_hotel_finder.infrastructure.coupon_name_resolver import (
     CouponNameAmbiguousError,
@@ -239,7 +239,7 @@ async def run_search_area_service(user_input: SearchAreaInput) -> list[dict]:
         )
         return await search_area(
             user_input=user_input,
-            resolve_sml_codes_for_prefecture=resolve_sml_codes_for_prefecture,
+            resolve_area_routes_for_prefecture=resolve_area_routes_for_prefecture,
             crawler=crawler,
         )
 

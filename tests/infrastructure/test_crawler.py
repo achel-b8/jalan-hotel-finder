@@ -2,7 +2,10 @@ import asyncio
 
 import pytest
 
-from jalan_hotel_finder.infrastructure.access_control import AccessRestrictedError
+from jalan_hotel_finder.infrastructure.access_control import (
+    AccessRestrictedError,
+    InvalidAreaRouteError,
+)
 from jalan_hotel_finder.infrastructure.crawler import (
     CrawlFetchError,
     FetchResult,
@@ -46,6 +49,18 @@ class _RestrictedFetcher:
         return FetchResult(url=url, html="<a href='/yad999999/'>hotel</a>", status_code=200)
 
 
+class _InvalidAreaRouteFetcher:
+    async def fetch(self, url: str) -> FetchResult:
+        return FetchResult(
+            url=url,
+            html=(
+                "<title>エラー画面</title>"
+                "ただ今の時間帯アクセスが集中しているため、つながりにくくなっております。"
+            ),
+            status_code=200,
+        )
+
+
 @pytest.mark.asyncio
 async def test_parallel_limit_is_respected_with_semaphore() -> None:
     fetcher = _CountingFetcher()
@@ -79,3 +94,11 @@ async def test_access_restriction_stops_before_next_area_batch() -> None:
         )
 
     assert "https://example.com/should-not-run" not in fetcher.called_urls
+
+
+@pytest.mark.asyncio
+async def test_invalid_area_route_error_is_raised_for_sml_error_template() -> None:
+    crawler = PlaywrightCrawler(fetcher=_InvalidAreaRouteFetcher(), parallel=1)
+
+    with pytest.raises(InvalidAreaRouteError):
+        await crawler.fetch_url("https://www.jalan.net/100000/LRG_101400/SML_101402/")

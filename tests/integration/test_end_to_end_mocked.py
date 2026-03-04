@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from jalan_hotel_finder.application.area_routes import AreaRoute
 from jalan_hotel_finder.application.input_models import SearchAreaInput, SearchNamesInput
 from jalan_hotel_finder.application.search_services import (
     FetchedPage,
@@ -29,9 +30,18 @@ class _FakeCrawler:
         return None
 
 
-def _resolver(prefecture_name: str) -> list[str]:
+def _resolver(prefecture_name: str) -> list[AreaRoute]:
     if prefecture_name == "北海道":
-        return ["SML_010202"]
+        return [
+            AreaRoute(
+                pref_code="010000",
+                lrg_code="LRG_010200",
+                sml_code="SML_010202",
+                pref_name="北海道",
+                lrg_name="札幌",
+                sml_name="ススキノ・大通",
+            )
+        ]
     raise ValueError(f"unknown prefecture: {prefecture_name}")
 
 
@@ -42,7 +52,7 @@ def _fixture(path: str) -> str:
 @pytest.mark.asyncio
 async def test_integration_us01_area_search_list_snapshot() -> None:
     user_input = SearchAreaInput(checkin="2026-03-10", pref=["北海道"])
-    start_url = build_search_area_url("SML_010202", user_input)
+    start_url = build_search_area_url(_resolver("北海道")[0], user_input)
     second_url = "https://www.jalan.net/010000/LRG_010200/SML_010202/?idx=30"
 
     crawler = _FakeCrawler(
@@ -54,7 +64,7 @@ async def test_integration_us01_area_search_list_snapshot() -> None:
 
     records = await search_area(
         user_input=user_input,
-        resolve_sml_codes_for_prefecture=_resolver,
+        resolve_area_routes_for_prefecture=_resolver,
         crawler=crawler,
     )
 

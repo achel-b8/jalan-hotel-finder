@@ -3,6 +3,7 @@ from typing import Any
 
 import pytest
 
+from jalan_hotel_finder.application.area_routes import AreaRoute
 from jalan_hotel_finder.application.input_models import (
     SearchAreaInput,
     SearchCouponInput,
@@ -53,11 +54,41 @@ class _TrackingCrawler:
         return None
 
 
-def _resolver(prefecture_name: str) -> list[str]:
+def _build_area_route(
+    pref_code: str,
+    lrg_code: str,
+    sml_code: str,
+    pref_name: str,
+) -> AreaRoute:
+    return AreaRoute(
+        pref_code=pref_code,
+        lrg_code=lrg_code,
+        sml_code=sml_code,
+        pref_name=pref_name,
+        lrg_name="テスト大エリア",
+        sml_name="テスト小エリア",
+    )
+
+
+def _resolver(prefecture_name: str) -> list[AreaRoute]:
     if prefecture_name == "北海道":
-        return ["SML_010202"]
+        return [
+            _build_area_route(
+                pref_code="010000",
+                lrg_code="LRG_010200",
+                sml_code="SML_010202",
+                pref_name="北海道",
+            )
+        ]
     if prefecture_name == "青森県":
-        return ["SML_020202"]
+        return [
+            _build_area_route(
+                pref_code="020000",
+                lrg_code="LRG_020200",
+                sml_code="SML_020202",
+                pref_name="青森県",
+            )
+        ]
     raise ValueError("unknown prefecture")
 
 
@@ -102,7 +133,7 @@ async def test_search_area_keeps_up_to_three_plans_per_hotel_across_multiple_sml
 
     actual = await search_area(
         user_input=user_input,
-        resolve_sml_codes_for_prefecture=_resolver,
+        resolve_area_routes_for_prefecture=_resolver,
         crawler=crawler,
         hotel_card_extractor=_extractor_from_marker,
         next_page_extractor=lambda html, url: None,
@@ -124,7 +155,7 @@ async def test_search_area_raises_when_one_area_fails() -> None:
     with pytest.raises(AreaSearchFailedError):
         await search_area(
             user_input=user_input,
-            resolve_sml_codes_for_prefecture=_resolver,
+            resolve_area_routes_for_prefecture=_resolver,
             crawler=crawler,
             hotel_card_extractor=_extractor_from_marker,
             next_page_extractor=lambda html, url: None,
@@ -139,7 +170,7 @@ async def test_search_area_returns_empty_when_no_records() -> None:
 
     actual = await search_area(
         user_input=user_input,
-        resolve_sml_codes_for_prefecture=_resolver,
+        resolve_area_routes_for_prefecture=_resolver,
         crawler=crawler,
         hotel_card_extractor=lambda html: [],
         next_page_extractor=lambda html, url: None,
@@ -162,7 +193,7 @@ async def test_search_names_local_filter_keeps_partial_matches_only(tmp_path: Pa
 
     async def area_search_stub(
         user_input: SearchAreaInput,
-        resolve_sml_codes_for_prefecture,
+        resolve_area_routes_for_prefecture,
         crawler,
     ) -> list[dict[str, Any]]:
         return [
@@ -182,7 +213,7 @@ async def test_search_names_local_filter_keeps_partial_matches_only(tmp_path: Pa
 
     actual = await search_names_local_filter(
         user_input=user_input,
-        resolve_sml_codes_for_prefecture=_resolver,
+        resolve_area_routes_for_prefecture=_resolver,
         crawler=crawler,
         names_loader=lambda _: ["札幌", "函館"],
         area_search_runner=area_search_stub,
@@ -207,7 +238,7 @@ async def test_search_names_local_filter_returns_empty_when_no_match(tmp_path: P
 
     async def area_search_stub(
         user_input: SearchAreaInput,
-        resolve_sml_codes_for_prefecture,
+        resolve_area_routes_for_prefecture,
         crawler,
     ) -> list[dict[str, Any]]:
         return [
@@ -223,7 +254,7 @@ async def test_search_names_local_filter_returns_empty_when_no_match(tmp_path: P
 
     actual = await search_names_local_filter(
         user_input=user_input,
-        resolve_sml_codes_for_prefecture=_resolver,
+        resolve_area_routes_for_prefecture=_resolver,
         crawler=_FakeCrawler(html_by_url={}),
         names_loader=lambda _: ["函館"],
         area_search_runner=area_search_stub,
@@ -247,7 +278,7 @@ async def test_search_names_local_filter_keeps_up_to_three_plans_after_match(
 
     async def _search_area_stub(
         user_input: SearchAreaInput,
-        resolve_sml_codes_for_prefecture,
+        resolve_area_routes_for_prefecture,
         crawler,
     ) -> list[dict[str, Any]]:
         return [
@@ -271,7 +302,7 @@ async def test_search_names_local_filter_keeps_up_to_three_plans_after_match(
 
     actual = await search_names_local_filter(
         user_input=user_input,
-        resolve_sml_codes_for_prefecture=_resolver,
+        resolve_area_routes_for_prefecture=_resolver,
         crawler=_FakeCrawler(html_by_url={}),
         names_loader=lambda _: ["札幌"],
         area_search_runner=_search_area_stub,
@@ -300,7 +331,7 @@ async def test_search_names_local_filter_accepts_hotel_url_candidates(tmp_path: 
 
     async def area_search_stub(
         user_input: SearchAreaInput,
-        resolve_sml_codes_for_prefecture,
+        resolve_area_routes_for_prefecture,
         crawler,
     ) -> list[dict[str, Any]]:
         return [
@@ -332,7 +363,7 @@ async def test_search_names_local_filter_accepts_hotel_url_candidates(tmp_path: 
 
     actual = await search_names_local_filter(
         user_input=user_input,
-        resolve_sml_codes_for_prefecture=_resolver,
+        resolve_area_routes_for_prefecture=_resolver,
         crawler=_FakeCrawler(html_by_url={}),
         area_search_runner=area_search_stub,
     )

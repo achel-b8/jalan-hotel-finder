@@ -4,6 +4,7 @@ from datetime import date
 import re
 from urllib.parse import quote_from_bytes, urlencode, urlunsplit
 
+from jalan_hotel_finder.application.area_routes import AreaRoute
 from jalan_hotel_finder.application.input_models import (
     KeywordEncoding,
     MealType,
@@ -12,6 +13,7 @@ from jalan_hotel_finder.application.input_models import (
 )
 
 
+_PREF_CODE_PATTERN = re.compile(r"^(\d{6})$")
 _SML_CODE_PATTERN = re.compile(r"^SML_(\d{6})$")
 _LRG_CODE_PATTERN = re.compile(r"^LRG_(\d{6})$")
 _MEAL_TYPE_TO_PARAM = {
@@ -22,11 +24,11 @@ _MEAL_TYPE_TO_PARAM = {
 }
 
 
-def build_search_area_url(sml_code: str, user_input: SearchAreaInput) -> str:
+def build_search_area_url(route: AreaRoute, user_input: SearchAreaInput) -> str:
     """Build a search URL for one SML area."""
-    sml_digits = _extract_sml_digits(sml_code)
-    pref_code = f"{sml_digits[:2]}0000"
-    lrg_code = f"{sml_digits[:4]}00"
+    pref_code = _extract_pref_digits(route.pref_code)
+    lrg_digits = _extract_lrg_digits(route.lrg_code)
+    sml_digits = _extract_sml_digits(route.sml_code)
 
     query_params = {
         "stayYear": f"{user_input.checkin.year:04d}",
@@ -51,7 +53,7 @@ def build_search_area_url(sml_code: str, user_input: SearchAreaInput) -> str:
     if user_input.max_price is not None:
         query_params["maxPrice"] = str(user_input.max_price)
 
-    path = f"/{pref_code}/LRG_{lrg_code}/SML_{sml_digits}/"
+    path = f"/{pref_code}/LRG_{lrg_digits}/SML_{sml_digits}/"
     return urlunsplit(("https", "www.jalan.net", path, urlencode(query_params), ""))
 
 
@@ -147,6 +149,13 @@ def _extract_sml_digits(sml_code: str) -> str:
     match = _SML_CODE_PATTERN.fullmatch(sml_code)
     if match is None:
         raise ValueError(f"invalid SML code: {sml_code}")
+    return match.group(1)
+
+
+def _extract_pref_digits(pref_code: str) -> str:
+    match = _PREF_CODE_PATTERN.fullmatch(pref_code)
+    if match is None:
+        raise ValueError(f"invalid prefecture code: {pref_code}")
     return match.group(1)
 
 

@@ -1,0 +1,38 @@
+name: Area Route Drift Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+
+jobs:
+  detect-drift:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install lxml
+
+      - name: Detect route drift
+        run: |
+          python scripts/detect_area_xml_route_drift.py \
+            --area-xml-path src/jalan_hotel_finder/infrastructure/data/area.xml \
+            --output-file data/area_route_drift_latest.json \
+            --fail-on-unexpected
+
+      - name: Upload drift report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: area-route-drift-report
+          path: data/area_route_drift_latest.json

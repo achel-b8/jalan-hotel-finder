@@ -233,14 +233,14 @@
 ### [x] T16: US-01/US-02障害是正とE2E回帰防止
 - 目的: 実環境で発生した `area` 停止問題と `list` 空配列問題を是正し、E2Eで再検知できる状態にする。
 - 成果物:
-  - `area.xml` 展開時の固定除外SML適用（初期値: `SML_013508`, `SML_101402`）
+  - `area.xml` 展開時の `pref/lrg/sml` ルート展開 + 再配置SML補正 + 固定除外SML適用
   - `openYadoSyosai('NNNNNN',...)` 形式と現行DOMクラス対応の抽出改善
   - mocked契約テストfixtureの現行DOM化
   - Live E2Eの非空・期待レコード必須化
 - 依存タスク: T04, T06, T11, T14
-- 前提条件: 2026-02-24/2026-03-04観測で `SML_013508` と `SML_101402` が恒常的にエラー画面を返すことを確認済み
+- 前提条件: 2026-03-05観測で再配置SML（`SML_013508`, `SML_101402`, `SML_212910`, `SML_212912`, `SML_340305`, `SML_340308`）と恒常無効SML（`SML_251105`）を判別済み
 - テスト:
-  - `resolve_sml_codes_for_prefecture` が `SML_013508` と `SML_101402` を除外
+  - `resolve_area_routes_for_prefecture` が再配置SMLの `lrg_code` を補正し、恒常無効SMLを除外
   - `openYadoSyosai` fixture から `hotel_name/url/plan/price` を抽出
   - `search_names_keyword_one_shot` がCSV読込経路でURL一致 `matched_name` を再現
   - Live E2Eで `area/list` の空配列通過を禁止
@@ -339,7 +339,7 @@
 
 | 要件ID | テストID（主要） |
 |---|---|
-| US-01-1 `pref -> SML展開` | `tests/infrastructure/test_area_xml_resolver.py::test_resolves_sml_codes_for_representative_prefecture` / `tests/infrastructure/test_area_xml_resolver.py::test_excludes_fixed_blocked_sml_codes_from_results` / `tests/cli/test_cli_commands.py::test_cli_search_area_accepts_comma_separated_prefectures` |
+| US-01-1 `pref -> SML展開` | `tests/infrastructure/test_area_xml_resolver.py::test_resolves_sml_codes_for_representative_prefecture` / `tests/infrastructure/test_area_xml_resolver.py::test_applies_relocated_route_overrides_instead_of_excluding_codes` / `tests/infrastructure/test_area_xml_resolver.py::test_excludes_fixed_invalid_sml_codes_from_results` / `tests/cli/test_cli_commands.py::test_cli_search_area_accepts_comma_separated_prefectures` |
 | US-01-2 `ページネーション追跡` | `tests/application/test_pagination.py::test_build_next_page_url_increments_by_30` / `tests/integration/test_end_to_end_mocked.py::test_integration_us01_area_search_list_snapshot` |
 | US-01-3 `hotel_name/url/plan/price出力` | `tests/infrastructure/test_hotel_card_extractor.py::test_extracts_required_fields_from_normal_html` / `tests/infrastructure/test_hotel_card_extractor.py::test_extracts_keyword_result_cards_from_open_yado_syosai_links` |
 | US-01-4 `URLパス単位の同一宿判定 + 1宿最大3件` | `tests/domain/test_hotel_deduplication.py::test_deduplication_keeps_records_when_query_is_different_within_limit` / `tests/domain/test_hotel_deduplication.py::test_deduplication_limits_to_three_records_per_hotel_by_default` / `tests/application/test_search_services.py::test_search_area_keeps_up_to_three_plans_per_hotel_across_multiple_sml` |

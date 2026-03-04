@@ -10,6 +10,7 @@ from typing import Protocol
 
 from jalan_hotel_finder.infrastructure.access_control import (
     AccessRestrictedError,
+    raise_if_invalid_area_route_suspected,
     raise_if_access_restricted,
 )
 
@@ -115,6 +116,12 @@ class PlaywrightCrawler:
                 raise CrawlFetchError(f"failed to fetch URL: {url}") from error
 
         hotel_link_count = len(_HOTEL_LINK_PATTERN.findall(fetched.html))
+        raise_if_invalid_area_route_suspected(
+            url=fetched.url,
+            status_code=fetched.status_code,
+            body_text=fetched.html,
+            hotel_link_count=hotel_link_count,
+        )
         raise_if_access_restricted(fetched.status_code, fetched.html, hotel_link_count)
         return fetched
 

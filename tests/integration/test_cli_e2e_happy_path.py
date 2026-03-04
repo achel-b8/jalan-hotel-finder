@@ -8,6 +8,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import pytest
 from typer.testing import CliRunner
 
+from jalan_hotel_finder.application.area_routes import AreaRoute
 from jalan_hotel_finder.application import search_services
 from jalan_hotel_finder.infrastructure.crawler import PlaywrightPageFetcher
 
@@ -30,9 +31,18 @@ def _future_checkin(days_from_today: int = 30) -> str:
     return (date.today() + timedelta(days=days_from_today)).isoformat()
 
 
-def _resolver_single_area(prefecture_name: str) -> list[str]:
+def _resolver_single_area(prefecture_name: str) -> list[AreaRoute]:
     if prefecture_name == "北海道":
-        return ["SML_010202"]
+        return [
+            AreaRoute(
+                pref_code="010000",
+                lrg_code="LRG_010200",
+                sml_code="SML_010202",
+                pref_name="北海道",
+                lrg_name="札幌",
+                sml_name="ススキノ・大通",
+            )
+        ]
     raise ValueError(f"unexpected prefecture in live E2E: {prefecture_name}")
 
 
@@ -55,11 +65,11 @@ def _patch_live_playwright_route(monkeypatch) -> dict[str, int]:
         fetch_count["value"] += 1
         return await original_fetch(self, url)
 
-    def _single_page_url(sml_code: str, user_input) -> str:  # type: ignore[no-untyped-def]
-        return _force_idx_offset(original_build_url(sml_code, user_input))
+    def _single_page_url(route, user_input) -> str:  # type: ignore[no-untyped-def]
+        return _force_idx_offset(original_build_url(route, user_input))
 
     monkeypatch.setattr(PlaywrightPageFetcher, "fetch", _counting_fetch)
-    monkeypatch.setattr(cli_module, "resolve_sml_codes_for_prefecture", _resolver_single_area)
+    monkeypatch.setattr(cli_module, "resolve_area_routes_for_prefecture", _resolver_single_area)
     monkeypatch.setattr(search_services, "build_search_area_url", _single_page_url)
     return fetch_count
 

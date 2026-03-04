@@ -9,6 +9,8 @@ DEFAULT_AREA_XML_PATH = Path(__file__).resolve().parent / "data" / "area.xml"
 EXCLUDED_SML_CODES_V1: set[str] = {
     # 2026-02-24 observation: this area consistently returns Jalan error page.
     "SML_013508",
+    # 2026-03-04 observation: this area consistently returns Jalan error page.
+    "SML_101402",
 }
 
 

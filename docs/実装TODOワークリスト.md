@@ -233,14 +233,14 @@
 ### [x] T16: US-01/US-02障害是正とE2E回帰防止
 - 目的: 実環境で発生した `area` 停止問題と `list` 空配列問題を是正し、E2Eで再検知できる状態にする。
 - 成果物:
-  - `area.xml` 展開時の固定除外SML適用（初期値: `SML_013508`）
+  - `area.xml` 展開時の固定除外SML適用（初期値: `SML_013508`, `SML_101402`）
   - `openYadoSyosai('NNNNNN',...)` 形式と現行DOMクラス対応の抽出改善
   - mocked契約テストfixtureの現行DOM化
   - Live E2Eの非空・期待レコード必須化
 - 依存タスク: T04, T06, T11, T14
-- 前提条件: 2026-02-24観測で `SML_013508` が恒常的にエラー画面を返すことを確認済み
+- 前提条件: 2026-02-24/2026-03-04観測で `SML_013508` と `SML_101402` が恒常的にエラー画面を返すことを確認済み
 - テスト:
-  - `resolve_sml_codes_for_prefecture` が `SML_013508` を除外
+  - `resolve_sml_codes_for_prefecture` が `SML_013508` と `SML_101402` を除外
   - `openYadoSyosai` fixture から `hotel_name/url/plan/price` を抽出
   - `search_names_keyword_one_shot` がCSV読込経路でURL一致 `matched_name` を再現
   - Live E2Eで `area/list` の空配列通過を禁止

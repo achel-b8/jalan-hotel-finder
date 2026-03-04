@@ -20,9 +20,12 @@ def test_resolves_sml_codes_for_representative_prefecture() -> None:
 
 
 def test_excludes_fixed_blocked_sml_codes_from_results() -> None:
-    actual = resolve_sml_codes_for_prefecture("北海道")
+    hokkaido = resolve_sml_codes_for_prefecture("北海道")
+    ibaraki = resolve_sml_codes_for_prefecture("茨城県")
 
-    assert "SML_013508" not in actual
+    assert "SML_013508" not in hokkaido
+    assert "SML_101402" not in ibaraki
+    assert "SML_101405" in ibaraki
 
 
 def test_raises_when_prefecture_is_unknown() -> None:
